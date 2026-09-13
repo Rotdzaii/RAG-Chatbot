@@ -1,13 +1,72 @@
+from uuid import UUID
+
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from google.genai.errors import APIError
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import SessionLocal
 from rag.ingestion import ingest_document
+from rag.qa import answer_question
 
 
 router = APIRouter()
 ALLOWED_MIME_TYPES = {"application/pdf", "text/plain"}
 MAX_FILE_SIZE = 10 * 1024 * 1024
+
+
+class QuestionRequest(BaseModel):
+    question: str
+    top_k: int = Field(default=5, ge=1, le=20)
+
+    @field_validator("question")
+    @classmethod
+    def validate_question(cls, value: str) -> str:
+        question = value.strip()
+        if not question:
+            raise ValueError("Question must not be blank")
+        return question
+
+
+class QuestionSource(BaseModel):
+    citation: int
+    chunk_id: UUID
+    document_id: UUID
+    filename: str
+    chunk_index: int
+    cosine_distance: float
+
+
+class QuestionResponse(BaseModel):
+    answer: str
+    sources: list[QuestionSource]
+
+
+@router.post("/questions", response_model=QuestionResponse)
+def answer_question_request(request: QuestionRequest) -> QuestionResponse:
+    session = SessionLocal()
+    try:
+        result = answer_question(session, request.question, top_k=request.top_k)
+        return QuestionResponse(
+            answer=result.answer,
+            sources=[
+                QuestionSource(
+                    citation=citation,
+                    chunk_id=chunk.chunk_id,
+                    document_id=chunk.document_id,
+                    filename=chunk.filename,
+                    chunk_index=chunk.chunk_index,
+                    cosine_distance=chunk.cosine_distance,
+                )
+                for citation, chunk in enumerate(result.sources, start=1)
+            ],
+        )
+    except (SQLAlchemyError, APIError, RuntimeError, ValueError) as error:
+        raise HTTPException(
+            status_code=503, detail="Question answering is unavailable"
+        ) from error
+    finally:
+        session.close()
 
 
 @router.post("/documents", status_code=status.HTTP_201_CREATED)
