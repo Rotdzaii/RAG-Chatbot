@@ -3,9 +3,11 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import engine
+from rag.router import router as documents_router
 
 
 app = FastAPI(title="RAG Chatbot API")
+app.include_router(documents_router)
 
 
 @app.get("/health")
