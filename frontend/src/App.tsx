@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { askQuestion } from './api'
 import type { QuestionResponse } from './api'
+import vluLogo from './assets/vlu-logo.svg'
 import './App.css'
 
 type Turn = {
@@ -61,31 +62,16 @@ function App() {
 
   return (
     <div className={hasMessages ? 'app-shell app-shell--chat' : 'app-shell'} lang="vi">
-      <a className="skip-link" href="#question">Đến ô nhập câu hỏi</a>
       <header className="topbar">
-        <a className="brand" href="#conversation" aria-label="RAG Chatbot, về cuộc trò chuyện">
-          <span className="brand-mark" aria-hidden="true">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M5 5.5h14v10H11l-4.5 3v-3H5z" strokeLinejoin="round" />
-              <path d="M8.5 9h7M8.5 12h4" strokeLinecap="round" />
-            </svg>
-          </span>
-          <strong>RAG <span>Chatbot</span></strong>
+        <a className="brand" href="#conversation" aria-label="Đại học Văn Lang, về cuộc trò chuyện">
+          <img className="brand-logo" src={vluLogo} alt="Đại học Văn Lang" width={138} height={42} />
         </a>
-        <span className="header-note">Hỏi đáp cùng kho tri thức</span>
       </header>
 
       <main className={hasMessages ? 'conversation conversation--active' : 'conversation'} id="conversation" aria-labelledby={hasMessages ? 'conversation-heading' : 'welcome-heading'}>
         {!hasMessages ? <section className="welcome">
-          <div className="welcome-kicker">
-            <span className="welcome-rule" aria-hidden="true" />
-            Không gian hỏi đáp
-          </div>
-          <h1 id="welcome-heading">Bạn đang muốn tìm hiểu điều gì?</h1>
-          <p>
-            Đặt câu hỏi về kho tri thức đã được chuẩn bị.
-            Cùng tìm câu trả lời rõ ràng, có nguồn để đối chiếu.
-          </p>
+          <h1 id="welcome-heading">Bạn cần tìm thông tin gì tại Văn Lang?</h1>
+          <p>Nhập câu hỏi bên dưới để bắt đầu.</p>
           <div className="context-note">
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.4" aria-hidden="true">
               <path d="M3.5 4.5h5l1.5 1 1.5-1h5v11h-5L10 17l-1.5-1.5h-5zM10 5.5V17" strokeLinejoin="round" />
@@ -103,10 +89,10 @@ function App() {
                     <p className="message-text">{turn.question}</p>
                   </div>
                   <div className="assistant-message">
-                    <span className="message-label">RAG Chatbot</span>
+                    <span className="message-label">Trợ lý</span>
                     {turn.status === 'pending' && (
                       <p className="message-text waiting-message">
-                        Đang tìm câu trả lời trong kho tri thức…
+                        Đang suy nghĩ…
                       </p>
                     )}
                     {turn.status === 'complete' && (
@@ -165,13 +151,12 @@ function App() {
                   void sendQuestion(question)
                 }
               }}
-              placeholder="Viết điều bạn muốn tìm hiểu…"
+              placeholder="Ví dụ: Điều kiện xét tốt nghiệp gồm những gì?"
               aria-describedby="composer-help"
             />
             <div className="composer-toolbar">
-              <span className="composer-context">Dựa trên kho tri thức</span>
               <button type="submit" className="send-button" aria-label="Gửi câu hỏi" disabled={pending || !question.trim()}>
-                <span>Gửi câu hỏi</span>
+                <span>Gửi</span>
                 <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
                   <path d="M10 15V5m-4 4 4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -179,7 +164,7 @@ function App() {
             </div>
           </form>
           <p className="composer-help" id="composer-help">
-            Câu trả lời có thể chưa đầy đủ. Hãy đối chiếu với nguồn trích dẫn.
+            Enter để gửi · Shift + Enter để xuống dòng
           </p>
         </div>
       </main>
