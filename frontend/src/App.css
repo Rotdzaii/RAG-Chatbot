@@ -16,6 +16,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 
 a:focus-visible,
 button:focus-visible,
+ .transcript:focus-visible,
 textarea:focus-visible {
   outline: 2px solid #227363;
   outline-offset: 5px;
@@ -211,8 +212,8 @@ textarea:focus-visible {
 }
 
 .send-button svg { width: 20px; height: 20px; }
-.send-button:hover { background: #1d5749; box-shadow: 0 3px 9px #1d493325; }
-.send-button:active { background: #154737; box-shadow: none; }
+.send-button:hover:not(:disabled) { background: #1d5749; box-shadow: 0 3px 9px #1d493325; }
+.send-button:active:not(:disabled) { background: #154737; box-shadow: none; }
 
 .composer-help {
   margin: 14px 12px 0;
@@ -239,6 +240,135 @@ textarea:focus-visible {
   .composer-toolbar { gap: 10px; }
   .composer-context { max-width: 115px; font-size: 11px; }
   .send-button { gap: 8px; padding: 0 12px; }
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.app-shell--chat {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  min-height: 0;
+}
+
+.app-shell--chat .topbar { flex-shrink: 0; }
+
+.conversation.conversation--active {
+  flex: 1;
+  min-height: 0;
+  gap: 0;
+  justify-content: flex-start;
+  padding: 0 0 max(12px, env(safe-area-inset-bottom));
+}
+
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+  scrollbar-color: #bdc9be transparent;
+  padding: 24px 14px 32px;
+  border-radius: 8px;
+}
+
+.chat-turn { display: flex; flex-direction: column; gap: 22px; }
+.chat-turn + .chat-turn { margin-top: 34px; }
+
+.message-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #52675b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.message-text {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.8;
+}
+
+.user-message {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 15px 19px;
+  border: 1px solid #d8e3d9;
+  border-radius: 18px 18px 5px 18px;
+  background: #e9eee5;
+}
+
+.assistant-message {
+  align-self: flex-start;
+  min-width: 0;
+  max-width: 100%;
+  padding: 18px 20px;
+  border: 1px solid #e3e3d9;
+  border-radius: 5px 18px 18px 18px;
+  background: #fffefa;
+  box-shadow: 0 3px 12px -8px #313f2b20;
+}
+
+.waiting-message { color: #606c64; }
+.answer-sources { margin-top: 22px; padding-top: 15px; border-top: 1px solid #e7e8df; }
+.answer-sources h2 { margin: 0 0 10px; color: #59675e; font-size: 12px; font-weight: 600; }
+.source-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+
+.source-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  min-width: 0;
+  max-width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e5da;
+  border-radius: 10px;
+  background: #f7f8f2;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.citation-number { flex-shrink: 0; color: #246555; font-weight: 650; }
+.source-card > div { min-width: 0; }
+.source-filename { display: block; overflow-wrap: anywhere; font-weight: 600; }
+.source-index { display: block; color: #667166; font-size: 11px; }
+.message-error p { margin: 0 0 12px; color: #865038; font-size: 14px; line-height: 1.7; }
+
+.retry-button {
+  min-height: 40px;
+  padding: 8px 14px;
+  border: 1px solid #abc1b0;
+  border-radius: 9px;
+  color: #205e53;
+  background: #f4f8f1;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.retry-button:hover:not(:disabled) { border-color: #508879; background: #e5eee3; }
+.send-button:disabled, .retry-button:disabled { opacity: 0.55; cursor: not-allowed; box-shadow: none; }
+.composer textarea:disabled { color: #677269; cursor: wait; }
+.conversation--active .composer-dock { position: relative; bottom: auto; flex-shrink: 0; padding-top: 12px; }
+.conversation--active .composer textarea { max-height: min(160px, 22dvh); }
+
+@media (max-width: 600px) {
+  .transcript { padding: 16px 5px 24px; }
+  .assistant-message { padding: 15px; }
+  .user-message { max-width: 92%; padding: 12px 16px; }
+  .conversation--active .composer { padding: 14px 16px 12px; }
+  .conversation--active .composer-help { margin-top: 8px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
