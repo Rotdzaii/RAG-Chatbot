@@ -11,7 +11,7 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
-from rag.retrieval import RetrievedChunk, retrieve_chunks
+from rag.retrieval import MAX_COSINE_DISTANCE, RetrievedChunk, retrieve_chunks
 
 
 class RetrieveChunksTests(unittest.TestCase):
@@ -55,6 +55,23 @@ class RetrieveChunksTests(unittest.TestCase):
         self.assertIn("chunks.embedding IS NOT NULL", statement_sql)
         self.assertIn("ORDER BY", statement_sql)
         self.assertEqual(statement._limit_clause.value, 3)
+
+    def test_applies_distance_threshold_before_ordering_and_limit(self) -> None:
+        session = Mock()
+        session.execute.return_value.mappings.return_value = []
+
+        with patch("rag.retrieval.embed_query", return_value=[0.1] * 768):
+            retrieve_chunks(session, "search phrase", top_k=4)
+
+        statement = session.execute.call_args.args[0]
+        compiled = statement.compile()
+        statement_sql = str(compiled)
+
+        self.assertIn("<=", statement_sql)
+        self.assertIn(MAX_COSINE_DISTANCE, compiled.params.values())
+        self.assertLess(statement_sql.index("WHERE"), statement_sql.index("ORDER BY"))
+        self.assertLess(statement_sql.index("ORDER BY"), statement_sql.index("LIMIT"))
+        self.assertEqual(statement._limit_clause.value, 4)
 
     def test_rejects_blank_query_without_embedding_or_database_work(self) -> None:
         session = Mock()
