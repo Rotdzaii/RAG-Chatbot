@@ -4,7 +4,7 @@ import sys
 import unittest
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage
@@ -134,6 +134,17 @@ class TraceAttachmentTests(unittest.TestCase):
 
 
 class TraceHandlerLoggingTests(unittest.TestCase):
+    def test_short_run_ids_use_distinct_trailing_uuid_characters(self) -> None:
+        first = UUID("12345678-1234-5678-1234-56780000aaaa")
+        second = UUID("12345678-1234-5678-1234-56780000bbbb")
+
+        first_display = LangChainTraceHandler._short_run_id(first)
+        second_display = LangChainTraceHandler._short_run_id(second)
+
+        self.assertEqual(first_display, "0000aaaa")
+        self.assertEqual(second_display, "0000bbbb")
+        self.assertNotEqual(first_display, second_display)
+
     def assert_sanitized(self, logs: str) -> None:
         for secret in (
             QUESTION,

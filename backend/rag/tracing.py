@@ -38,7 +38,7 @@ class LangChainTraceHandler(BaseCallbackHandler):
 
     @staticmethod
     def _short_run_id(run_id: UUID) -> str:
-        return str(run_id)[:8]
+        return run_id.hex[-8:]
 
     def _start(self, run_id: UUID, stage: str) -> None:
         started_at = time.perf_counter()
