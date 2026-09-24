@@ -13,5 +13,6 @@ dependencies = [
     "pypdf>=6.18.1",
     "python-multipart>=0.0.32",
     "sqlalchemy>=2.0.52",
+    "supabase>=2.31.0",
     "uvicorn>=0.52.4",
 ]

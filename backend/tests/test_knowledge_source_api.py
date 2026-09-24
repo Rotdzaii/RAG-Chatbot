@@ -17,6 +17,7 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
+from auth import AuthenticatedUser, require_admin  # noqa: E402
 from main import app  # noqa: E402
 from rag.knowledge_sources import (  # noqa: E402
     KnowledgeSourcePage,
@@ -47,7 +48,15 @@ def source_record(filename: str, chunk_count: int) -> KnowledgeSourceRecord:
 
 class KnowledgeSourceApiTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.previous_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides[require_admin] = lambda: AuthenticatedUser(
+            id=uuid4()
+        )
         self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.previous_overrides)
 
     def test_returns_empty_page_and_closes_session(self) -> None:
         session = Mock()
