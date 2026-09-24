@@ -4,6 +4,7 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import engine
+from rag.admin_router import router as admin_router
 from rag.router import router as documents_router
 
 
@@ -16,6 +17,7 @@ app.add_middleware(
     allow_headers=["Content-Type"],
 )
 app.include_router(documents_router)
+app.include_router(admin_router)
 
 
 @app.get("/health")
