@@ -1,10 +1,11 @@
 from uuid import UUID
 
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from langchain_google_genai._common import GoogleGenerativeAIError
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
+from auth import require_admin
 from database import SessionLocal
 from rag.ingestion import ingest_document
 from rag.qa import answer_question
@@ -74,7 +75,11 @@ def answer_question_request(request: QuestionRequest) -> QuestionResponse:
         session.close()
 
 
-@router.post("/documents", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/documents",
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[Depends(require_admin)],
+)
 def upload_document(
     file: UploadFile | None = File(default=None),
 ) -> dict[str, str | int]:
