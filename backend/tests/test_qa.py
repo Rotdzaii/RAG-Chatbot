@@ -2,7 +2,9 @@ import sys
 import unittest
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
-from uuid import uuid4
+from uuid import UUID, uuid4
+
+from langchain_core.documents import Document
 
 
 fake_config = ModuleType("config")
@@ -11,73 +13,91 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
-from rag.qa import QuestionAnswer, answer_question
-from rag.retrieval import RetrievedChunk
+from rag.qa import QuestionAnswer, answer_question  # noqa: E402
 
 
-def retrieved_chunk() -> RetrievedChunk:
-    return RetrievedChunk(
-        chunk_id=uuid4(),
-        document_id=uuid4(),
-        filename="guide.txt",
-        chunk_index=0,
-        content="Reference content.",
-        cosine_distance=0.1,
+def source_document(filename: str, index: int, content: str) -> Document:
+    return Document(
+        page_content=content,
+        metadata={
+            "chunk_id": str(uuid4()),
+            "document_id": str(uuid4()),
+            "filename": filename,
+            "chunk_index": index,
+            "cosine_distance": 0.1 + index / 100,
+        },
     )
 
 
 class AnswerQuestionTests(unittest.TestCase):
-    def test_returns_generated_answer_and_sources_in_retrieval_order(self) -> None:
+    def test_returns_answer_and_typed_sources_in_pipeline_order(self) -> None:
         session = Mock()
-        chunks = [retrieved_chunk(), retrieved_chunk()]
+        documents = [
+            source_document("first.txt", 1, "First source."),
+            source_document("second.pdf", 2, "Second source."),
+        ]
+        pipeline = Mock()
+        pipeline.invoke.return_value = {
+            "answer": "Answer [1] [2]",
+            "documents": documents,
+        }
 
-        with (
-            patch("rag.qa.retrieve_chunks", return_value=chunks) as retrieve,
-            patch("rag.qa.generate_answer", return_value="Answer [1]") as generate,
-        ):
+        with patch("rag.qa.build_rag_pipeline", return_value=pipeline) as build:
             result = answer_question(session, "What is this?", top_k=2)
 
-        self.assertEqual(result, QuestionAnswer(answer="Answer [1]", sources=chunks))
-        self.assertIs(result.sources, chunks)
-        retrieve.assert_called_once_with(session, "What is this?", top_k=2)
-        generate.assert_called_once_with("What is this?", chunks)
+        self.assertIsInstance(result, QuestionAnswer)
+        self.assertEqual(result.answer, "Answer [1] [2]")
+        self.assertEqual(
+            [source.filename for source in result.sources],
+            ["first.txt", "second.pdf"],
+        )
+        self.assertEqual(
+            [source.content for source in result.sources],
+            ["First source.", "Second source."],
+        )
+        self.assertEqual(
+            [source.chunk_index for source in result.sources], [1, 2]
+        )
+        self.assertTrue(
+            all(isinstance(source.chunk_id, UUID) for source in result.sources)
+        )
+        self.assertTrue(
+            all(isinstance(source.document_id, UUID) for source in result.sources)
+        )
+        self.assertTrue(
+            all(isinstance(source.cosine_distance, float) for source in result.sources)
+        )
+        build.assert_called_once_with(session, top_k=2)
+        pipeline.invoke.assert_called_once_with({"question": "What is this?"})
 
-    def test_passes_empty_retrieval_results_to_generation(self) -> None:
+    def test_returns_empty_sources_from_no_context_result(self) -> None:
         session = Mock()
+        pipeline = Mock()
+        pipeline.invoke.return_value = {
+            "answer": "Không có ngữ cảnh phù hợp để trả lời câu hỏi này.",
+            "documents": [],
+        }
 
-        with (
-            patch("rag.qa.retrieve_chunks", return_value=[]) as retrieve,
-            patch("rag.qa.generate_answer", return_value="Không có ngữ cảnh.") as generate,
-        ):
+        with patch("rag.qa.build_rag_pipeline", return_value=pipeline) as build:
             result = answer_question(session, "Câu hỏi")
 
         self.assertEqual(result.sources, [])
-        self.assertEqual(result.answer, "Không có ngữ cảnh.")
-        retrieve.assert_called_once_with(session, "Câu hỏi", top_k=5)
-        generate.assert_called_once_with("Câu hỏi", [])
+        self.assertEqual(
+            result.answer, "Không có ngữ cảnh phù hợp để trả lời câu hỏi này."
+        )
+        build.assert_called_once_with(session, top_k=5)
+        pipeline.invoke.assert_called_once_with({"question": "Câu hỏi"})
 
-    def test_propagates_retrieval_failure_without_generation(self) -> None:
+    def test_propagates_pipeline_failure(self) -> None:
         session = Mock()
+        pipeline = Mock()
+        pipeline.invoke.side_effect = RuntimeError("pipeline failed")
 
-        with (
-            patch("rag.qa.retrieve_chunks", side_effect=ValueError("invalid query")),
-            patch("rag.qa.generate_answer") as generate,
-        ):
-            with self.assertRaisesRegex(ValueError, "invalid query"):
+        with patch("rag.qa.build_rag_pipeline", return_value=pipeline):
+            with self.assertRaisesRegex(RuntimeError, "pipeline failed"):
                 answer_question(session, "question")
 
-        generate.assert_not_called()
-
-    def test_propagates_generation_failure(self) -> None:
-        session = Mock()
-        chunks = [retrieved_chunk()]
-
-        with (
-            patch("rag.qa.retrieve_chunks", return_value=chunks),
-            patch("rag.qa.generate_answer", side_effect=RuntimeError("unavailable")),
-        ):
-            with self.assertRaisesRegex(RuntimeError, "unavailable"):
-                answer_question(session, "question")
+        pipeline.invoke.assert_called_once_with({"question": "question"})
 
 
 if __name__ == "__main__":

@@ -5,7 +5,7 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from fastapi.testclient import TestClient
-from google.genai.errors import APIError
+from langchain_google_genai._common import GoogleGenerativeAIError
 from sqlalchemy.exc import SQLAlchemyError
 
 
@@ -134,14 +134,14 @@ class QuestionAnswerApiTests(unittest.TestCase):
         )
         session.close.assert_called_once_with()
 
-    def test_maps_gemini_api_errors_to_generic_service_unavailable(self) -> None:
+    def test_maps_langchain_google_errors_to_generic_service_unavailable(self) -> None:
         session = Mock()
 
         with (
             patch("rag.router.SessionLocal", return_value=session),
             patch(
                 "rag.router.answer_question",
-                side_effect=APIError(500, {"error": "internal detail"}),
+                side_effect=GoogleGenerativeAIError("internal provider detail"),
             ),
         ):
             response = self.client.post("/questions", json={"question": "Question"})
