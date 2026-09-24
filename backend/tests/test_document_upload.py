@@ -16,13 +16,23 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
+from auth import AuthenticatedUser, get_authenticated_user, require_admin
 from main import app
+from rag.qa import QuestionAnswer
 from rag.router import MAX_FILE_SIZE, upload_document
 
 
 class DocumentUploadTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.previous_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides[require_admin] = lambda: AuthenticatedUser(
+            id=uuid4()
+        )
         self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.previous_overrides)
 
     def test_uploads_document(self) -> None:
         session = Mock()
@@ -150,6 +160,76 @@ class DocumentUploadTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json(), {"detail": "Database unavailable"})
+        session.close.assert_called_once_with()
+
+
+class DocumentUploadAuthorizationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.previous_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.previous_overrides)
+
+    def test_missing_token_denies_upload_before_endpoint_work(self) -> None:
+        with (
+            patch("tempfile.SpooledTemporaryFile.read") as file_read,
+            patch("rag.router.SessionLocal") as session_local,
+            patch("rag.router.ingest_document") as ingest,
+        ):
+            response = self.client.post(
+                "/documents",
+                files={"file": ("notes.txt", b"content", "text/plain")},
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "Authentication required"})
+        file_read.assert_not_called()
+        session_local.assert_not_called()
+        ingest.assert_not_called()
+
+    def test_authenticated_non_admin_is_denied_before_endpoint_work(self) -> None:
+        admin_id = uuid4()
+        app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(
+            id=uuid4()
+        )
+        configured = ModuleType("config")
+        configured.settings = SimpleNamespace(admin_user_id=admin_id)
+
+        with (
+            patch.dict(sys.modules, {"config": configured}),
+            patch("tempfile.SpooledTemporaryFile.read") as file_read,
+            patch("rag.router.SessionLocal") as session_local,
+            patch("rag.router.ingest_document") as ingest,
+        ):
+            response = self.client.post(
+                "/documents",
+                files={"file": ("notes.txt", b"content", "text/plain")},
+            )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json(), {"detail": "Admin access required"})
+        file_read.assert_not_called()
+        session_local.assert_not_called()
+        ingest.assert_not_called()
+
+    def test_questions_remain_public(self) -> None:
+        session = Mock()
+        result = QuestionAnswer(answer="Public answer", sources=[])
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.answer_question", return_value=result) as answer,
+        ):
+            response = self.client.post(
+                "/questions", json={"question": "Public question"}
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json(), {"answer": "Public answer", "sources": []})
+        answer.assert_called_once_with(session, "Public question", top_k=5)
         session.close.assert_called_once_with()
 
 
