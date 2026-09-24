@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy.exc import SQLAlchemyError
 
 from database import SessionLocal
-from rag.knowledge_sources import list_knowledge_sources
+from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -64,6 +64,22 @@ def get_knowledge_sources(
             limit=page.limit,
             offset=page.offset,
         )
+    except SQLAlchemyError as error:
+        raise HTTPException(
+            status_code=503, detail="Knowledge sources are unavailable"
+        ) from error
+    finally:
+        session.close()
+
+
+@router.get("/knowledge-sources/{source_id}", response_model=KnowledgeSourceItem)
+def get_knowledge_source_detail(source_id: UUID) -> KnowledgeSourceItem:
+    session = SessionLocal()
+    try:
+        source = get_knowledge_source(session, source_id)
+        if source is None:
+            raise HTTPException(status_code=404, detail="Knowledge source not found")
+        return KnowledgeSourceItem.model_validate(source)
     except SQLAlchemyError as error:
         raise HTTPException(
             status_code=503, detail="Knowledge sources are unavailable"

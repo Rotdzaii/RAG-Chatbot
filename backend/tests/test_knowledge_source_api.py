@@ -75,6 +75,79 @@ class KnowledgeSourceApiTests(unittest.TestCase):
         )
         session.close.assert_called_once_with()
 
+    def test_returns_source_detail_without_chunk_payloads(self) -> None:
+        session = Mock()
+        source = source_record("handbook.txt", 9)
+
+        with (
+            patch("rag.admin_router.SessionLocal", return_value=session),
+            patch(
+                "rag.admin_router.get_knowledge_source", return_value=source
+            ) as get_source,
+        ):
+            response = self.client.get(
+                f"/admin/knowledge-sources/{source.id}"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["id"], str(source.id))
+        self.assertEqual(body["filename"], "handbook.txt")
+        self.assertEqual(body["chunk_count"], 9)
+        self.assertNotIn("content", body)
+        self.assertNotIn("embedding", body)
+        get_source.assert_called_once_with(session, source.id)
+        session.close.assert_called_once_with()
+
+    def test_unknown_source_returns_not_found_and_closes_session(self) -> None:
+        session = Mock()
+        source_id = uuid4()
+
+        with (
+            patch("rag.admin_router.SessionLocal", return_value=session),
+            patch("rag.admin_router.get_knowledge_source", return_value=None),
+        ):
+            response = self.client.get(
+                f"/admin/knowledge-sources/{source_id}"
+            )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertEqual(
+            response.json(), {"detail": "Knowledge source not found"}
+        )
+        session.close.assert_called_once_with()
+
+    def test_invalid_source_id_is_rejected_before_session_creation(self) -> None:
+        with patch("rag.admin_router.SessionLocal") as session_local:
+            response = self.client.get(
+                "/admin/knowledge-sources/not-a-valid-uuid"
+            )
+
+        self.assertEqual(response.status_code, 422)
+        session_local.assert_not_called()
+
+    def test_detail_database_failure_returns_generic_service_unavailable(self) -> None:
+        session = Mock()
+        source_id = uuid4()
+
+        with (
+            patch("rag.admin_router.SessionLocal", return_value=session),
+            patch(
+                "rag.admin_router.get_knowledge_source",
+                side_effect=SQLAlchemyError("sensitive database detail"),
+            ),
+        ):
+            response = self.client.get(
+                f"/admin/knowledge-sources/{source_id}"
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(), {"detail": "Knowledge sources are unavailable"}
+        )
+        self.assertNotIn("sensitive database detail", response.text)
+        session.close.assert_called_once_with()
+
     def test_returns_metadata_only_in_service_order(self) -> None:
         session = Mock()
         first = source_record("newer.txt", 5)

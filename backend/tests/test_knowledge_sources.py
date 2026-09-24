@@ -16,6 +16,7 @@ sys.modules.setdefault("config", fake_config)
 
 from rag.knowledge_sources import (  # noqa: E402
     KnowledgeSourceRecord,
+    get_knowledge_source,
     list_knowledge_sources,
 )
 
@@ -42,6 +43,35 @@ def source_row(filename: str, chunk_count: int) -> dict[str, object]:
 
 
 class KnowledgeSourceServiceTests(unittest.TestCase):
+    def test_gets_one_source_with_chunk_count(self) -> None:
+        session = Mock()
+        row = source_row("handbook.pdf", 6)
+        session.execute.return_value.mappings.return_value.one_or_none.return_value = row
+
+        result = get_knowledge_source(session, row["id"])
+
+        self.assertIsInstance(result, KnowledgeSourceRecord)
+        self.assertEqual(result.id, row["id"])
+        self.assertEqual(result.filename, "handbook.pdf")
+        self.assertEqual(result.chunk_count, 6)
+        session.execute.assert_called_once()
+
+        statement = session.execute.call_args.args[0]
+        statement_sql = str(statement)
+        self.assertIn("documents.id =", statement_sql)
+        self.assertIn("count(chunks.id)", statement_sql)
+        self.assertNotIn("chunks.content", statement_sql)
+        self.assertNotIn("chunks.embedding", statement_sql)
+
+    def test_get_returns_none_when_source_does_not_exist(self) -> None:
+        session = Mock()
+        session.execute.return_value.mappings.return_value.one_or_none.return_value = None
+
+        result = get_knowledge_source(session, uuid4())
+
+        self.assertIsNone(result)
+        session.execute.assert_called_once()
+
     def test_returns_empty_page(self) -> None:
         session = Mock()
         session.scalar.return_value = 0
