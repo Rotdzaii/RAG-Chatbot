@@ -1,7 +1,7 @@
 from uuid import UUID
 
 from fastapi import APIRouter, File, HTTPException, UploadFile, status
-from google.genai.errors import APIError
+from langchain_google_genai._common import GoogleGenerativeAIError
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -61,7 +61,12 @@ def answer_question_request(request: QuestionRequest) -> QuestionResponse:
                 for citation, chunk in enumerate(result.sources, start=1)
             ],
         )
-    except (SQLAlchemyError, APIError, RuntimeError, ValueError) as error:
+    except (
+        SQLAlchemyError,
+        GoogleGenerativeAIError,
+        RuntimeError,
+        ValueError,
+    ) as error:
         raise HTTPException(
             status_code=503, detail="Question answering is unavailable"
         ) from error
