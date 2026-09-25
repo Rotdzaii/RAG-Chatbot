@@ -1,15 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import App from './App.tsx'
-import { AuthGate } from './auth/AuthGate'
+import { BrowserRouter } from 'react-router'
 import { AuthProvider } from './auth/AuthProvider'
+import { AppRouter } from './routing/AppRouter'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <AuthProvider>
-      <AuthGate>
-        <App />
-      </AuthGate>
-    </AuthProvider>
+    <BrowserRouter>
+      <AuthProvider>
+        <AppRouter />
+      </AuthProvider>
+    </BrowserRouter>
   </StrictMode>,
 )
