@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { askQuestion } from './api'
 import type { QuestionResponse } from './api'
 import vluLogo from './assets/vlu-logo.svg'
+import { AccountControl } from './auth/AccountControl'
 import './App.css'
 
 type Turn = {
@@ -66,6 +67,7 @@ function App() {
         <a className="brand" href="#conversation" aria-label="Đại học Văn Lang, về cuộc trò chuyện">
           <img className="brand-logo" src={vluLogo} alt="Đại học Văn Lang" width={138} height={42} />
         </a>
+        <AccountControl />
       </header>
 
       <main className={hasMessages ? 'conversation conversation--active' : 'conversation'} id="conversation" aria-labelledby={hasMessages ? 'conversation-heading' : 'welcome-heading'}>

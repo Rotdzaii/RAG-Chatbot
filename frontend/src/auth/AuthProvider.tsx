@@ -22,14 +22,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
       },
     )
 
-    void supabase.auth.getSession().then(({ data: { session: restoredSession } }) => {
-      if (!isActive) return
+    void supabase.auth.getSession()
+      .then(({ data: { session: restoredSession } }) => {
+        if (!isActive) return
 
-      if (!receivedAuthEvent) {
-        setSession(restoredSession)
-      }
-      setIsLoading(false)
-    })
+        if (!receivedAuthEvent) {
+          setSession(restoredSession)
+        }
+        setIsLoading(false)
+      })
+      .catch(() => {
+        if (isActive) {
+          setIsLoading(false)
+        }
+      })
 
     return () => {
       isActive = false
@@ -45,7 +51,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     supabase.auth.signUp({ email, password })
   ), [])
 
-  const signOut = useCallback(() => supabase.auth.signOut(), [])
+  const signOut = useCallback(() => supabase.auth.signOut({ scope: 'local' }), [])
 
   const value = useMemo(() => ({
     session,
