@@ -3,6 +3,7 @@ import { askQuestion } from './api'
 import type { QuestionResponse } from './api'
 import vluLogo from './assets/vlu-logo.svg'
 import { AccountControl } from './auth/AccountControl'
+import { consumePendingQuestion, finishPendingQuestionConsumption } from './chat/pendingQuestion'
 import './App.css'
 
 type Turn = {
@@ -15,7 +16,7 @@ type Turn = {
 )
 
 function App() {
-  const [question, setQuestion] = useState('')
+  const [question, setQuestion] = useState(consumePendingQuestion)
   const [turns, setTurns] = useState<Turn[]>([])
   const [pending, setPending] = useState(false)
   const requestInFlight = useRef(false)
@@ -23,6 +24,10 @@ function App() {
   const transcript = useRef<HTMLDivElement>(null)
   const composerInput = useRef<HTMLTextAreaElement>(null)
   const hasMessages = turns.length > 0
+
+  useEffect(() => {
+    finishPendingQuestionConsumption()
+  }, [])
 
   useEffect(() => {
     const container = transcript.current
