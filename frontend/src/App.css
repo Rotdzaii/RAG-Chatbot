@@ -59,6 +59,68 @@ textarea:focus-visible {
   flex-shrink: 0;
 }
 
+.account-control {
+  position: relative;
+  min-width: 0;
+}
+
+.account-control__row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  min-width: 0;
+}
+
+.account-email {
+  max-width: min(30vw, 280px);
+  overflow: hidden;
+  color: #646473;
+  font-size: 12px;
+  line-height: 1.5;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.logout-button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 7px 11px;
+  border: 1px solid #cbc8c6;
+  border-radius: 8px;
+  color: var(--vlu-navy);
+  background: transparent;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 160ms ease, color 160ms ease, background-color 160ms ease;
+}
+
+.logout-button svg { width: 17px; height: 17px; }
+.logout-button:hover:not(:disabled) { border-color: #c3868e; color: var(--vlu-red); background: #fff8f8; }
+.logout-button:disabled { opacity: 0.58; cursor: wait; }
+
+.logout-error {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  width: max-content;
+  max-width: min(320px, 70vw);
+  margin: 0;
+  padding: 7px 9px;
+  border: 1px solid #e5bbc0;
+  border-radius: 6px;
+  color: #8f2433;
+  background: #fff7f8;
+  box-shadow: 0 5px 16px -10px #1f225155;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
 .conversation {
   display: flex;
   flex-direction: column;
@@ -192,6 +254,9 @@ textarea:focus-visible {
 @media (max-width: 600px) {
   .topbar { min-height: 72px; padding: 18px 20px; }
   .brand-logo { width: 118px; }
+  .account-email { display: none; }
+  .logout-button { min-height: 36px; padding: 6px 9px; }
+  .logout-button span { display: none; }
   .conversation {
     width: calc(100% - 32px);
     min-height: calc(100svh - 72px);
