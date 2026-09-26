@@ -1,11 +1,12 @@
 from uuid import UUID
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from langchain_google_genai._common import GoogleGenerativeAIError
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
 
-from auth import require_admin
+from auth import AuthenticatedUser, get_authenticated_user, require_admin
 from database import SessionLocal
 from rag.ingestion import ingest_document
 from rag.qa import answer_question
@@ -17,6 +18,8 @@ MAX_FILE_SIZE = 10 * 1024 * 1024
 
 
 class QuestionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     question: str
     top_k: int = Field(default=5, ge=1, le=20)
 
@@ -44,7 +47,11 @@ class QuestionResponse(BaseModel):
 
 
 @router.post("/questions", response_model=QuestionResponse)
-def answer_question_request(request: QuestionRequest) -> QuestionResponse:
+def answer_question_request(
+    request: QuestionRequest,
+    authenticated_user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
+) -> QuestionResponse:
+    _ = authenticated_user.id
     session = SessionLocal()
     try:
         result = answer_question(session, request.question, top_k=request.top_k)

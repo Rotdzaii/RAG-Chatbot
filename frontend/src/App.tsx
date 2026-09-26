@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { askQuestion } from './api'
+import { askQuestion, QuestionAuthenticationError } from './api'
 import type { QuestionResponse } from './api'
 import vluLogo from './assets/vlu-logo.svg'
 import { AccountControl } from './auth/AccountControl'
+import { useAuth } from './auth/useAuth'
 import { consumePendingQuestion, finishPendingQuestionConsumption } from './chat/pendingQuestion'
 import './App.css'
 
@@ -12,10 +13,13 @@ type Turn = {
 } & (
   | { status: 'pending' }
   | { status: 'complete'; response: QuestionResponse }
-  | { status: 'error' }
+  | { status: 'error'; message?: string }
 )
 
+const SESSION_EXPIRED_ERROR = 'Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.'
+
 function App() {
+  const { session } = useAuth()
   const [question, setQuestion] = useState(consumePendingQuestion)
   const [turns, setTurns] = useState<Turn[]>([])
   const [pending, setPending] = useState(false)
@@ -52,13 +56,23 @@ function App() {
     if (retryId === undefined) setQuestion('')
 
     try {
-      const response = await askQuestion(trimmedQuestion)
+      const accessToken = session && (
+        session.expires_at === undefined || session.expires_at > Date.now() / 1000
+      ) ? session.access_token : undefined
+      const response = await askQuestion(trimmedQuestion, accessToken)
       setTurns((previous) => previous.map((item) => item.id === id
         ? { id, question: trimmedQuestion, status: 'complete', response }
         : item))
-    } catch {
+    } catch (error) {
       setTurns((previous) => previous.map((item) => item.id === id
-        ? { id, question: trimmedQuestion, status: 'error' }
+        ? {
+            id,
+            question: trimmedQuestion,
+            status: 'error',
+            message: error instanceof QuestionAuthenticationError
+              ? SESSION_EXPIRED_ERROR
+              : undefined,
+          }
         : item))
     } finally {
       requestInFlight.current = false
@@ -125,7 +139,7 @@ function App() {
                     )}
                     {turn.status === 'error' && (
                       <div className="message-error">
-                        <p>Chưa thể lấy câu trả lời. Câu hỏi của bạn vẫn được giữ lại; hãy thử lại.</p>
+                        <p>{turn.message ?? 'Chưa thể lấy câu trả lời. Câu hỏi của bạn vẫn được giữ lại; hãy thử lại.'}</p>
                         <button type="button" className="retry-button" disabled={pending} onClick={() => void sendQuestion(turn.question, turn.id)}>
                           Thử lại
                         </button>
