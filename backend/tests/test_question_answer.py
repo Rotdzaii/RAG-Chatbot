@@ -15,6 +15,7 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
+from auth import AuthenticatedUser, get_authenticated_user
 from main import app
 from rag.qa import QuestionAnswer
 from rag.retrieval import RetrievedChunk
@@ -33,7 +34,16 @@ def retrieved_chunk(index: int) -> RetrievedChunk:
 
 class QuestionAnswerApiTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.previous_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
+        app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(
+            id=uuid4()
+        )
         self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.previous_overrides)
 
     def test_returns_answer_and_ordered_citations(self) -> None:
         session = Mock()
@@ -99,6 +109,16 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         self.assertEqual(blank_response.status_code, 422)
         self.assertEqual(top_k_response.status_code, 422)
+        session_local.assert_not_called()
+
+    def test_rejects_request_supplied_user_id_before_session_creation(self) -> None:
+        with patch("rag.router.SessionLocal") as session_local:
+            response = self.client.post(
+                "/questions",
+                json={"question": "Question", "user_id": str(uuid4())},
+            )
+
+        self.assertEqual(response.status_code, 422)
         session_local.assert_not_called()
 
     def test_maps_rag_service_failures_to_generic_service_unavailable(self) -> None:
@@ -167,6 +187,53 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         session.close.assert_called_once_with()
 
+
+class QuestionAuthenticationTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.previous_overrides = app.dependency_overrides.copy()
+        app.dependency_overrides.clear()
+        self.client = TestClient(app)
+
+    def tearDown(self) -> None:
+        app.dependency_overrides.clear()
+        app.dependency_overrides.update(self.previous_overrides)
+
+    def test_unauthenticated_request_is_rejected_before_rag_work(self) -> None:
+        with (
+            patch("rag.router.SessionLocal") as session_local,
+            patch("rag.router.answer_question") as answer_question,
+        ):
+            response = self.client.post(
+                "/questions", json={"question": "Question"}
+            )
+
+        self.assertEqual(response.status_code, 401)
+        self.assertEqual(response.json(), {"detail": "Authentication required"})
+        self.assertEqual(response.headers["www-authenticate"], "Bearer")
+        session_local.assert_not_called()
+        answer_question.assert_not_called()
+
+    def test_malformed_bearer_credentials_are_rejected_before_rag_work(self) -> None:
+        malformed_headers = (
+            {"Authorization": "Basic credentials"},
+            {"Authorization": "Bearer"},
+        )
+
+        for headers in malformed_headers:
+            with self.subTest(headers=headers):
+                with (
+                    patch("rag.router.SessionLocal") as session_local,
+                    patch("rag.router.answer_question") as answer_question,
+                ):
+                    response = self.client.post(
+                        "/questions",
+                        json={"question": "Question"},
+                        headers=headers,
+                    )
+
+                self.assertEqual(response.status_code, 401)
+                session_local.assert_not_called()
+                answer_question.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()

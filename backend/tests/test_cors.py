@@ -25,7 +25,7 @@ class CorsTests(unittest.TestCase):
             headers={
                 "Origin": origin,
                 "Access-Control-Request-Method": "POST",
-                "Access-Control-Request-Headers": "Content-Type",
+                "Access-Control-Request-Headers": "Content-Type, Authorization",
             },
         )
 
@@ -34,6 +34,9 @@ class CorsTests(unittest.TestCase):
         self.assertEqual(response.headers["access-control-allow-methods"], "GET, POST")
         self.assertIn(
             "content-type", response.headers["access-control-allow-headers"].lower()
+        )
+        self.assertIn(
+            "authorization", response.headers["access-control-allow-headers"].lower()
         )
         self.assertNotIn("access-control-allow-credentials", response.headers)
 

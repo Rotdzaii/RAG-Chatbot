@@ -21,6 +21,13 @@ export type QuestionResponse = {
   sources: QuestionSource[]
 }
 
+export class QuestionAuthenticationError extends Error {
+  constructor() {
+    super("Question authentication required")
+    this.name = "QuestionAuthenticationError"
+  }
+}
+
 async function throwForError(response: Response): Promise<void> {
   if (response.ok) {
     return
@@ -60,13 +67,25 @@ export async function uploadDocument(
 
 export async function askQuestion(
   question: string,
+  accessToken: string | undefined,
   topK = 5,
 ): Promise<QuestionResponse> {
+  const token = accessToken?.trim()
+  if (!token) {
+    throw new QuestionAuthenticationError()
+  }
+
   const response = await fetch(`${API_BASE_URL}/questions`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
     body: JSON.stringify({ question, top_k: topK }),
   })
+  if (response.status === 401) {
+    throw new QuestionAuthenticationError()
+  }
   await throwForError(response)
   return response.json() as Promise<QuestionResponse>
 }

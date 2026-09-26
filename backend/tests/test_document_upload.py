@@ -18,7 +18,6 @@ sys.modules.setdefault("config", fake_config)
 
 from auth import AuthenticatedUser, get_authenticated_user, require_admin
 from main import app
-from rag.qa import QuestionAnswer
 from rag.router import MAX_FILE_SIZE, upload_document
 
 
@@ -215,22 +214,18 @@ class DocumentUploadAuthorizationTests(unittest.TestCase):
         session_local.assert_not_called()
         ingest.assert_not_called()
 
-    def test_questions_remain_public(self) -> None:
-        session = Mock()
-        result = QuestionAnswer(answer="Public answer", sources=[])
-
+    def test_questions_require_authentication(self) -> None:
         with (
-            patch("rag.router.SessionLocal", return_value=session),
-            patch("rag.router.answer_question", return_value=result) as answer,
+            patch("rag.router.SessionLocal") as session_local,
+            patch("rag.router.answer_question") as answer,
         ):
             response = self.client.post(
-                "/questions", json={"question": "Public question"}
+                "/questions", json={"question": "Protected question"}
             )
 
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json(), {"answer": "Public answer", "sources": []})
-        answer.assert_called_once_with(session, "Public question", top_k=5)
-        session.close.assert_called_once_with()
+        self.assertEqual(response.status_code, 401)
+        session_local.assert_not_called()
+        answer.assert_not_called()
 
 
 if __name__ == "__main__":
