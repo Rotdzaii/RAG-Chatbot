@@ -4,7 +4,16 @@ import sys
 import unittest
 from types import ModuleType, SimpleNamespace
 
-from sqlalchemy import CheckConstraint, Date, DateTime, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    CheckConstraint,
+    Date,
+    DateTime,
+    String,
+    Text,
+    UniqueConstraint,
+)
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 fake_config = ModuleType("config")
@@ -13,7 +22,7 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
-from rag.models import Document  # noqa: E402
+from rag.models import Conversation, Document, Message  # noqa: E402
 
 
 class DocumentMetadataTests(unittest.TestCase):
@@ -81,6 +90,63 @@ class DocumentMetadataTests(unittest.TestCase):
         self.assertFalse(self.table.c.mime_type.nullable)
         self.assertEqual(Document.chunks.property.back_populates, "document")
         self.assertIn("delete-orphan", Document.chunks.property.cascade)
+
+
+class ConversationHistoryModelTests(unittest.TestCase):
+    def test_conversation_columns_relationship_and_index(self) -> None:
+        table = Conversation.__table__
+
+        self.assertFalse(table.c.user_id.nullable)
+        self.assertIsInstance(table.c.title.type, Text)
+        self.assertFalse(table.c.title.nullable)
+        self.assertIsInstance(table.c.is_pinned.type, Boolean)
+        self.assertFalse(table.c.is_pinned.nullable)
+        self.assertEqual(str(table.c.is_pinned.server_default.arg), "false")
+        for name in ("created_at", "updated_at"):
+            self.assertIsInstance(table.c[name].type, DateTime)
+            self.assertTrue(table.c[name].type.timezone)
+
+        indexes = {
+            index.name: tuple(column.name for column in index.columns)
+            for index in table.indexes
+        }
+        self.assertEqual(
+            indexes["ix_conversations_user_id_updated_at"],
+            ("user_id", "updated_at"),
+        )
+        self.assertIn("delete-orphan", Conversation.messages.property.cascade)
+        self.assertTrue(Conversation.messages.property.passive_deletes)
+
+    def test_message_columns_role_constraint_and_cascade_foreign_key(self) -> None:
+        table = Message.__table__
+
+        self.assertIsInstance(table.c.content.type, Text)
+        self.assertFalse(table.c.content.nullable)
+        self.assertIsInstance(table.c.citations.type, JSONB)
+        self.assertTrue(table.c.citations.nullable)
+        checks = {
+            constraint.name: str(constraint.sqltext)
+            for constraint in table.constraints
+            if isinstance(constraint, CheckConstraint)
+        }
+        self.assertEqual(
+            checks["ck_messages_role"], "role IN ('user', 'assistant')"
+        )
+        foreign_key = next(iter(table.c.conversation_id.foreign_keys))
+        self.assertEqual(foreign_key.ondelete, "CASCADE")
+
+        indexes = {
+            index.name: tuple(column.name for column in index.columns)
+            for index in table.indexes
+        }
+        self.assertEqual(
+            indexes["ix_messages_conversation_id_created_at"],
+            ("conversation_id", "created_at"),
+        )
+
+    def test_invalid_message_role_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "Message role"):
+            Message(role="system", content="invalid")
 
 
 if __name__ == "__main__":

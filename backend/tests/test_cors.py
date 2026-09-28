@@ -31,7 +31,10 @@ class CorsTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.headers["access-control-allow-origin"], origin)
-        self.assertEqual(response.headers["access-control-allow-methods"], "GET, POST")
+        self.assertEqual(
+            response.headers["access-control-allow-methods"],
+            "GET, POST, PATCH, DELETE",
+        )
         self.assertIn(
             "content-type", response.headers["access-control-allow-headers"].lower()
         )
