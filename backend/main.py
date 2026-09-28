@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database import engine
 from rag.admin_router import router as admin_router
+from rag.conversation_router import router as conversation_router
 from rag.router import router as documents_router
 
 
@@ -13,10 +14,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
 )
 app.include_router(documents_router)
+app.include_router(conversation_router)
 app.include_router(admin_router)
 
 

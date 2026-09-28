@@ -36,8 +36,9 @@ class QuestionAnswerApiTests(unittest.TestCase):
     def setUp(self) -> None:
         self.previous_overrides = app.dependency_overrides.copy()
         app.dependency_overrides.clear()
+        self.user_id = uuid4()
         app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(
-            id=uuid4()
+            id=self.user_id
         )
         self.client = TestClient(app)
 
@@ -60,6 +61,7 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["answer"], "Answer [1]")
+        self.assertIsNotNone(response.json()["conversation_id"])
         self.assertEqual(
             response.json()["sources"],
             [
@@ -82,6 +84,21 @@ class QuestionAnswerApiTests(unittest.TestCase):
             ],
         )
         answer_question.assert_called_once_with(session, "What is this?", top_k=2)
+        conversation = session.add.call_args.args[0]
+        self.assertEqual(conversation.user_id, self.user_id)
+        self.assertEqual(conversation.title, "What is this?")
+        messages = session.add_all.call_args.args[0]
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(
+            [(message.role, message.content) for message in messages],
+            [("user", "What is this?"), ("assistant", "Answer [1]")],
+        )
+        self.assertIsNone(messages[0].citations)
+        self.assertEqual(messages[1].citations, response.json()["sources"])
+        self.assertEqual(
+            response.json()["conversation_id"], str(conversation.id)
+        )
+        session.commit.assert_called_once_with()
         session.close.assert_called_once_with()
 
     def test_uses_default_top_k(self) -> None:
@@ -134,6 +151,10 @@ class QuestionAnswerApiTests(unittest.TestCase):
         self.assertEqual(
             response.json(), {"detail": "Question answering is unavailable"}
         )
+        session.rollback.assert_called_once_with()
+        session.add.assert_not_called()
+        session.add_all.assert_not_called()
+        session.commit.assert_not_called()
         session.close.assert_called_once_with()
 
     def test_maps_database_failures_to_generic_service_unavailable(self) -> None:
@@ -152,6 +173,7 @@ class QuestionAnswerApiTests(unittest.TestCase):
         self.assertEqual(
             response.json(), {"detail": "Question answering is unavailable"}
         )
+        session.rollback.assert_called_once_with()
         session.close.assert_called_once_with()
 
     def test_maps_langchain_google_errors_to_generic_service_unavailable(self) -> None:
@@ -170,7 +192,93 @@ class QuestionAnswerApiTests(unittest.TestCase):
         self.assertEqual(
             response.json(), {"detail": "Question answering is unavailable"}
         )
+        session.rollback.assert_called_once_with()
         session.close.assert_called_once_with()
+
+    def test_existing_conversation_requires_ownership_before_rag(self) -> None:
+        session = Mock()
+        conversation_id = uuid4()
+        session.scalar.return_value = None
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.answer_question") as answer_question,
+        ):
+            response = self.client.post(
+                "/questions",
+                json={
+                    "question": "Question",
+                    "conversation_id": str(conversation_id),
+                },
+            )
+
+        self.assertEqual(response.status_code, 404)
+        answer_question.assert_not_called()
+        self.assertEqual(session.scalar.call_count, 1)
+        session.rollback.assert_not_called()
+        session.add.assert_not_called()
+        session.add_all.assert_not_called()
+        session.commit.assert_not_called()
+
+    def test_success_appends_two_messages_to_owned_conversation(self) -> None:
+        session = Mock()
+        conversation_id = uuid4()
+        conversation = SimpleNamespace(id=conversation_id, user_id=self.user_id)
+        session.scalar.side_effect = [conversation, conversation]
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.answer_question",
+                return_value=QuestionAnswer(answer="Answer", sources=[]),
+            ),
+        ):
+            response = self.client.post(
+                "/questions",
+                json={
+                    "question": "Follow up",
+                    "conversation_id": str(conversation_id),
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["conversation_id"], str(conversation_id))
+        session.add.assert_not_called()
+        messages = session.add_all.call_args.args[0]
+        self.assertEqual(len(messages), 2)
+        self.assertTrue(
+            all(message.conversation_id == conversation_id for message in messages)
+        )
+        session.commit.assert_called_once_with()
+
+    def test_commit_failure_rolls_back_conversation_and_both_messages(self) -> None:
+        session = Mock()
+        session.commit.side_effect = SQLAlchemyError("write failed")
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.answer_question",
+                return_value=QuestionAnswer(answer="Answer", sources=[]),
+            ),
+        ):
+            response = self.client.post("/questions", json={"question": "Question"})
+
+        self.assertEqual(response.status_code, 503)
+        session.add.assert_called_once()
+        self.assertEqual(len(session.add_all.call_args.args[0]), 2)
+        session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_invalid_conversation_uuid_is_rejected_before_database_work(self) -> None:
+        with patch("rag.router.SessionLocal") as session_local:
+            response = self.client.post(
+                "/questions",
+                json={"question": "Question", "conversation_id": "not-a-uuid"},
+            )
+
+        self.assertEqual(response.status_code, 422)
+        session_local.assert_not_called()
 
     def test_propagates_unexpected_attribute_error_after_closing_session(self) -> None:
         session = Mock()
