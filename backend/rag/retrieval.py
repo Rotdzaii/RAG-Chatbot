@@ -8,6 +8,9 @@ from rag.embeddings import embed_query
 from rag.models import Chunk, Document
 
 
+MAX_COSINE_DISTANCE = 0.30
+
+
 @dataclass(frozen=True, slots=True)
 class RetrievedChunk:
     chunk_id: UUID
@@ -39,6 +42,7 @@ def retrieve_chunks(
         )
         .join(Document, Chunk.document_id == Document.id)
         .where(Chunk.embedding.is_not(None))
+        .where(cosine_distance <= MAX_COSINE_DISTANCE)
         .order_by(cosine_distance)
         .limit(top_k)
     )
