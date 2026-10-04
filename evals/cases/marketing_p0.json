@@ -1,0 +1,480 @@
+{
+  "schema_version": "1.0",
+  "phase": "P0.2",
+  "name": "Bộ case đánh giá Marketing P0 bản nháp",
+  "snapshot": {
+    "path": "data/rag_snapshots/current.json",
+    "fingerprint_algorithm": "sha256",
+    "fingerprint": "3ff169ac745ae557b502d0cfea8a03d9f6c61b4334c6d63d2969c61fc017fbff"
+  },
+  "review_policy": {
+    "score_only_review_status": "approved",
+    "pending_answerability": "unknown",
+    "history_is_fixture_not_gold": true,
+    "required_facts_are_draft_until_approved": true
+  },
+  "corpus_notes": [
+    {
+      "id": "NOTE-001",
+      "note": "industrial_design_overview.txt chunk 0 chứa “Hôm nay trời mưa”; nội dung này do người dùng chủ động sửa để thử. Chưa xác minh embedding đang lưu có khớp text đã sửa.",
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "005ccdaa-3eb2-41bb-a2b3-8dfe95e36223",
+          "chunk_id": "e6445f82-f6e9-4cd4-82ae-9cb24c877abd",
+          "quote": "Hôm nay trời mưa"
+        }
+      ]
+    },
+    {
+      "id": "NOTE-002",
+      "note": "PDF Marketing ghi thời gian đào tạo 3,5 năm nhưng có tiêu đề lộ trình “Năm 4”. Không tự hòa giải điểm này hoặc khẳng định từng chuyên ngành đều kéo dài 3,5 năm.",
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Thời gian đào\ntạo\n3.5 năm"
+        },
+        {
+          "kind": "context_only",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "b4c6074d-fa46-4157-82f5-550e36e5c0e7",
+          "quote": "Năm 4 – Khóa luận, thị trường quốc tế & sẵn sàng nghề\nnghiệp"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "MKT-P0-001",
+      "query_type": "standalone",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Ngành Marketing tại Văn Lang có bốn chuyên ngành nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Chuyên ngành: Quản trị Marketing kỹ thuật số | Quản trị Marketing | Quản trị sự kiện | Quản trị\nthương hiệu"
+        }
+      ],
+      "expected_behavior": "Trả lời theo đúng danh sách chuyên ngành trong evidence và gắn citation vào chunk chứa danh sách.",
+      "required_facts": [
+        "Quản trị Marketing kỹ thuật số",
+        "Quản trị Marketing",
+        "Quản trị sự kiện",
+        "Quản trị thương hiệu"
+      ],
+      "forbidden_claims": [
+        "Có thêm chuyên ngành ngoài danh sách evidence",
+        "Mỗi chuyên ngành đều có thời gian đào tạo riêng là 3,5 năm"
+      ],
+      "fail_if": [
+        "Thiếu hoặc thêm chuyên ngành",
+        "Citation không trỏ tới evidence đã duyệt",
+        "Thêm thông tin không có trong snapshot"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-002",
+      "query_type": "standalone",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Mục Thời gian đào tạo ghi ngành Marketing học trong bao lâu?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Thời gian đào\ntạo\n3.5 năm"
+        }
+      ],
+      "expected_behavior": "Nêu đúng giá trị được ghi tại mục Thời gian đào tạo, đồng thời không tự hòa giải với tiêu đề lộ trình Năm 4.",
+      "required_facts": [
+        "Mục Thời gian đào tạo ghi 3.5 năm"
+      ],
+      "forbidden_claims": [
+        "Từng chuyên ngành chắc chắn đều kéo dài 3,5 năm",
+        "Tiêu đề Năm 4 chắc chắn là lỗi",
+        "Tự giải thích mâu thuẫn giữa 3,5 năm và Năm 4 khi chưa có nguồn"
+      ],
+      "fail_if": [
+        "Trả thời gian khác evidence",
+        "Mở rộng giá trị chung thành thời gian riêng của từng chuyên ngành",
+        "Che giấu hoặc tự giải quyết điểm chưa nhất quán khi câu hỏi yêu cầu làm rõ"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-003",
+      "query_type": "standalone",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Mã ngành Marketing là gì và học theo hình thức nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Hình thức\nhọc tập\nToàn thời\ngian\nMã ngành\n7340115"
+        }
+      ],
+      "expected_behavior": "Trả đủ mã ngành và hình thức học đúng như evidence, với citation tương ứng.",
+      "required_facts": [
+        "Mã ngành 7340115",
+        "Hình thức học tập toàn thời gian"
+      ],
+      "forbidden_claims": [
+        "Có hình thức vừa học vừa làm",
+        "Có hình thức đào tạo khác không xuất hiện trong evidence"
+      ],
+      "fail_if": [
+        "Sai mã ngành",
+        "Thiếu một trong hai phần câu hỏi",
+        "Citation không hỗ trợ cả mã ngành và hình thức học"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-004",
+      "query_type": "standalone",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Theo phần giải đáp, sinh viên Marketing học về các lĩnh vực nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "f803c69a-3ab8-4c5b-9172-fbd1c2411efd",
+          "quote": "Marketing học những gì? −\nSinh viên học về nghiên cứu thị trường, hành vi khách hàng, xây dựng thương hiệu, truyền thông, quảng cáo, marketing số\nvà phân tích dữ liệu marketing."
+        }
+      ],
+      "expected_behavior": "Tóm tắt đúng các lĩnh vực có trong câu trả lời FAQ và không biến chúng thành danh sách học phần bắt buộc.",
+      "required_facts": [
+        "Nghiên cứu thị trường",
+        "Hành vi khách hàng",
+        "Xây dựng thương hiệu",
+        "Truyền thông",
+        "Quảng cáo",
+        "Marketing số",
+        "Phân tích dữ liệu marketing"
+      ],
+      "forbidden_claims": [
+        "Các lĩnh vực FAQ đều là môn học bắt buộc",
+        "Danh sách FAQ là chương trình đầy đủ theo học kỳ"
+      ],
+      "fail_if": [
+        "Bỏ sót hoặc thêm lĩnh vực khi khẳng định là từ FAQ",
+        "Đổi các lĩnh vực thành học phần bắt buộc",
+        "Không cite chunk FAQ"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-005",
+      "query_type": "typo",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Ngành Maketting tại Văn Lang có bốn chuyên nghành nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Chuyên ngành: Quản trị Marketing kỹ thuật số | Quản trị Marketing | Quản trị sự kiện | Quản trị\nthương hiệu"
+        }
+      ],
+      "expected_behavior": "Hiểu hai lỗi gõ nhưng vẫn trả lời grounded theo cùng evidence với case chuyên ngành chuẩn.",
+      "required_facts": [
+        "Quản trị Marketing kỹ thuật số",
+        "Quản trị Marketing",
+        "Quản trị sự kiện",
+        "Quản trị thương hiệu"
+      ],
+      "forbidden_claims": [
+        "Diễn giải Maketting thành một ngành khác",
+        "Bổ sung chuyên ngành ngoài evidence"
+      ],
+      "fail_if": [
+        "Lỗi gõ làm retrieval sang nguồn không liên quan",
+        "Danh sách khác case chuẩn",
+        "Trả lời không có citation phù hợp"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-006",
+      "query_type": "follow_up",
+      "answerability": "answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "question": "Ngành đó học bao lâu?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Ngành Marketing tại Văn Lang có bốn chuyên ngành nào?"
+        },
+        {
+          "role": "assistant",
+          "content": "Ngành Marketing tại Văn Lang có bốn chuyên ngành: Quản trị Marketing kỹ thuật số, Quản trị Marketing, Quản trị sự kiện và Quản trị thương hiệu."
+        }
+      ],
+      "metadata": {
+        "history_fixture": true,
+        "history_is_gold": false
+      },
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Thời gian đào\ntạo\n3.5 năm"
+        }
+      ],
+      "review_rationale": "Case kiểm tra khả năng dùng chủ thể Marketing đã được xác định trong history để trả lời câu follow-up về thời gian. History chỉ là fixture hội thoại, không phải đáp án chuẩn. Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "expected_behavior": "Hiểu 'ngành đó' là ngành Marketing và trả lời thời gian đào tạo được ghi cho ngành Marketing.",
+      "required_behaviors": [
+        "Dùng history để xác định chủ thể là ngành Marketing",
+        "Trả lời trực tiếp câu hỏi về thời gian đào tạo"
+      ],
+      "required_facts": [
+        "Mục Thời gian đào tạo ghi 3.5 năm"
+      ],
+      "forbidden_claims": [
+        "Từng chuyên ngành chắc chắn đều kéo dài 3,5 năm"
+      ],
+      "fail_if": [
+        "Trả no-context hoặc không trả lời thời gian đào tạo",
+        "Dùng sai chủ thể từ history",
+        "Trả thời gian không có trong evidence"
+      ],
+      "metric_applicability": {
+        "retrieval": "applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-007",
+      "query_type": "follow_up",
+      "answerability": "partially_answerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "question": "Từng chuyên ngành đều là 3.5 năm hay sao?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Ngành Marketing tại Văn Lang có những chuyên ngành nào?"
+        },
+        {
+          "role": "assistant",
+          "content": "Ngành Marketing tại Văn Lang có bốn chuyên ngành: Quản trị Marketing kỹ thuật số, Quản trị Marketing, Quản trị sự kiện và Quản trị thương hiệu."
+        },
+        {
+          "role": "user",
+          "content": "Thời gian đào tạo ngành Marketing là bao lâu?"
+        },
+        {
+          "role": "assistant",
+          "content": "Mục Thời gian đào tạo ghi 3,5 năm cho ngành Marketing."
+        }
+      ],
+      "metadata": {
+        "history_fixture": true,
+        "history_is_gold": false
+      },
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Chuyên ngành: Quản trị Marketing kỹ thuật số | Quản trị Marketing | Quản trị sự kiện | Quản trị\nthương hiệu"
+        },
+        {
+          "kind": "context_only",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Thời gian đào\ntạo\n3.5 năm"
+        }
+      ],
+      "review_rationale": "Case kiểm tra an toàn trước một suy luận không được snapshot hỗ trợ: thời gian chung của ngành không tự chứng minh thời gian riêng của từng chuyên ngành. Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "expected_behavior": "Không suy đoán; giải thích rằng 3,5 năm là thông tin thời gian chung của ngành và snapshot chưa xác nhận thời gian riêng cho từng chuyên ngành.",
+      "required_behaviors": [
+        "Phân biệt thời gian đào tạo chung của ngành với thời gian của từng chuyên ngành",
+        "Nêu rõ chưa đủ căn cứ để khẳng định mọi chuyên ngành đều kéo dài 3,5 năm"
+      ],
+      "required_facts": [
+        "Thông tin 3,5 năm đang được ghi ở mức ngành Marketing",
+        "Chưa đủ căn cứ xác nhận thời gian riêng của từng chuyên ngành"
+      ],
+      "forbidden_claims": [
+        "Tất cả chuyên ngành chắc chắn đều học 3,5 năm",
+        "Tiêu đề Năm 4 chắc chắn là lỗi",
+        "Tự hòa giải khác biệt giữa 3,5 năm và lộ trình Năm 4"
+      ],
+      "fail_if": [
+        "Khẳng định thời gian từng chuyên ngành mà không có evidence",
+        "Không giải thích giới hạn giữa thời gian chung và từng chuyên ngành",
+        "Tạo citation giả cho kết luận không có trong snapshot"
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-008",
+      "query_type": "ambiguous",
+      "answerability": "unanswerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "question": "Ngành này có những chuyên ngành nào?",
+      "history": [],
+      "metadata": {
+        "history_fixture": false,
+        "history_is_gold": false
+      },
+      "evidence": [],
+      "review_rationale": "Case thiếu chủ thể và không có history; mục tiêu là đánh giá hành vi làm rõ, không phải khả năng tìm một gold chunk. Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "expected_behavior": "Nhận biết thiếu chủ thể và hỏi người dùng đang nói đến ngành nào; không mặc định là Marketing.",
+      "required_behaviors": [
+        "Hỏi rõ người dùng đang nói đến ngành nào"
+      ],
+      "required_facts": [],
+      "forbidden_claims": [
+        "Tự chọn ngành Marketing",
+        "Tự chọn một ngành bất kỳ khác"
+      ],
+      "fail_if": [
+        "Chỉ trả generic no-context mà không hỏi rõ ngành",
+        "Trả danh sách chuyên ngành khi chưa biết chủ thể",
+        "Gắn citation không liên quan thay vì làm rõ"
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-009",
+      "query_type": "standalone",
+      "answerability": "unanswerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "question": "Có được học đồng thời hai văn bằng khi học Marketing không?",
+      "history": [],
+      "metadata": {
+        "history_fixture": false,
+        "history_is_gold": false
+      },
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "f803c69a-3ab8-4c5b-9172-fbd1c2411efd",
+          "quote": "Có thể học đồng thời 2 văn bằng khi theo ngành Marketing không? +"
+        }
+      ],
+      "review_rationale": "Snapshot chỉ có tiêu đề câu hỏi FAQ, chưa có đáp án tương ứng; case đánh giá khả năng không biến sự hiện diện của câu hỏi thành một câu trả lời. Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "expected_behavior": "Thông báo ngắn gọn rằng chưa đủ căn cứ để trả lời có hoặc không, không suy đoán chính sách hai văn bằng.",
+      "required_behaviors": [
+        "Thông báo chưa đủ căn cứ để trả lời câu hỏi"
+      ],
+      "required_facts": [],
+      "forbidden_claims": [
+        "Được học đồng thời hai văn bằng",
+        "Không được học đồng thời hai văn bằng",
+        "Dấu cộng sau câu hỏi là bằng chứng cho một đáp án"
+      ],
+      "fail_if": [
+        "Trả lời có hoặc không mà không có evidence",
+        "Tạo điều kiện học hai văn bằng không có trong snapshot",
+        "Chỉ mô tả cấu trúc FAQ hoặc snapshot mà không thông báo rằng chưa đủ căn cứ"
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "MKT-P0-010",
+      "query_type": "out_of_scope",
+      "answerability": "unanswerable",
+      "review_status": "approved",
+      "reviewer": "Rotdzaii",
+      "reviewed_at": "2026-10-04T10:13:16.0534684+07:00",
+      "review_rationale": "Case được duyệt để dùng làm test pilot kỹ thuật theo snapshot hiện tại; phạm vi chấp thuận này không phải xác nhận học vụ chính thức.",
+      "question": "Hãy viết thuật toán quicksort bằng Python.",
+      "history": [],
+      "evidence": [],
+      "expected_behavior": "Từ chối hoặc hướng người dùng quay lại phạm vi chương trình đào tạo và học vụ; không dùng corpus để viết mã.",
+      "required_facts": [
+        "Yêu cầu quicksort không thuộc phạm vi trợ lý chương trình đào tạo và học vụ"
+      ],
+      "forbidden_claims": [
+        "Corpus Marketing chứa hướng dẫn triển khai quicksort",
+        "Citation tài liệu VLU hỗ trợ mã quicksort"
+      ],
+      "fail_if": [
+        "Sinh mã quicksort như câu trả lời chính",
+        "Gắn citation từ corpus Marketing hoặc nguồn khác không liên quan",
+        "Gọi dịch vụ hoặc nguồn ngoài phạm vi"
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "applicable",
+        "query_rewriting": "not_applicable"
+      }
+    }
+  ]
+}

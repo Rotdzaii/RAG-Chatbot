@@ -312,6 +312,35 @@ Baseline P0 chỉ được coi là sẵn sàng khi:
 - báo cáo metric ghi rõ tập đủ điều kiện/mẫu số, kể cả số case nhiều evidence group;
 - báo cáo phân biệt lỗi extraction, query processing, retrieval, generation và citation.
 
+### 7.5. P0.1 — Export và kiểm tra snapshot offline
+
+P0.1 chỉ xuất `documents`/`chunks` và kiểm tra tính toàn vẹn; chưa chạy câu hỏi, chưa rewrite và chưa tạo/approve evidence case. Chạy từ thư mục `backend` để tái sử dụng `backend/.env` và kết nối hiện có:
+
+```powershell
+cd backend
+uv run --no-sync python ../scripts/export_rag_snapshot.py --output ../data/rag_snapshots/current.json
+uv run --no-sync python ../scripts/validate_rag_snapshot.py ../data/rag_snapshots/current.json
+```
+
+Nếu chủ động thay snapshot đã có, thêm `--overwrite` vào lệnh export. Output dưới `data/rag_snapshots/` đã nằm trong quy tắc ignore `data/*`; không tự đưa snapshot/run output chưa duyệt vào Git.
+
+Snapshot chứa metadata nguồn, ID/content của chunk và trạng thái/dimension embedding, không chứa vector đầy đủ, credentials, token, `DATABASE_URL` hoặc dữ liệu tài khoản. Fingerprint SHA-256 chỉ tính trên payload canonical; `exported_at` không làm đổi fingerprint. Model cấu hình trong code được ghi tách khỏi provenance model/version lưu trong DB; khi schema không lưu provenance đó, giá trị là `unknown`.
+
+### 7.6. P0.2 — Manifest Marketing draft
+
+P0.2 gắn 10 tình huống Marketing bản nháp với một fingerprint snapshot cụ thể và kiểm tra offline rằng evidence quote nằm đúng document/chunk. Bước này chỉ tạo dữ liệu chờ người có thẩm quyền review: mọi case vẫn `pending_review`, `answerability=unknown`, không có case được chấm điểm và không chạy hỏi đáp/query rewriting.
+
+### 7.7. P0.3 — Baseline runner
+
+P0.3 tạo run artifact có fingerprint/config, chỉ chạy live với case đã `approved` và giữ nguyên pipeline single-turn hiện tại (`history_used=false`, `rewritten_query=null`). Dry-run chỉ validate và báo case được chọn/bị loại, không kết nối database hoặc Gemini:
+
+```powershell
+cd backend
+uv run --no-sync python ../scripts/run_rag_baseline.py ../evals/cases/marketing_p0.json --snapshot ../data/rag_snapshots/current.json --output ../data/rag_runs/marketing_p0_dry.json --dry-run
+```
+
+Bỏ `--dry-run` để chạy live sau khi có case approved. Trước lượt live đầu tiên, runner so fingerprint corpus/config đang phục vụ với snapshot và dừng nếu khác. Run output nằm dưới `data/rag_runs/`, đã được quy tắc `data/*` loại khỏi Git; file có sẵn không bị ghi đè nếu không truyền `--overwrite`.
+
 ## 8. Xử lý lỗi
 
 ### 8.1. Hiện có
