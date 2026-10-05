@@ -5,11 +5,15 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from rag.models import Conversation, Message
+from rag.query_contract import (
+    HISTORY_MAX_CHARACTERS,
+    HISTORY_MAX_MESSAGES,
+    HISTORY_MAX_TURNS,
+    HistoryMessage,
+)
 
 
 AUTO_TITLE_MAX_LENGTH = 80
-
-
 def create_title_from_question(question: str) -> str:
     normalized = " ".join(question.split())
     if len(normalized) <= AUTO_TITLE_MAX_LENGTH:
@@ -55,6 +59,53 @@ def list_owned_messages(
         .order_by(Message.created_at.asc())
     )
     return list(session.scalars(statement))
+
+
+def list_recent_owned_messages(
+    session: Session,
+    conversation_id: UUID,
+    user_id: UUID,
+    *,
+    max_messages: int = HISTORY_MAX_MESSAGES,
+    max_characters: int = HISTORY_MAX_CHARACTERS,
+) -> list[HistoryMessage]:
+    statement = (
+        select(Message)
+        .join(Conversation, Conversation.id == Message.conversation_id)
+        .where(Message.conversation_id == conversation_id)
+        .where(Conversation.user_id == user_id)
+        .order_by(Message.created_at.desc())
+        .limit(max_messages)
+    )
+    newest_first = list(session.scalars(statement))[:max_messages]
+    messages = [
+        HistoryMessage(role=message.role, content=message.content)
+        for message in reversed(newest_first)
+        if message.role in {"user", "assistant"} and message.content.strip()
+    ]
+
+    while len(messages) > 2 and sum(len(item.content) for item in messages) > max_characters:
+        remove_count = (
+            2
+            if messages[0].role == "user" and messages[1].role == "assistant"
+            else 1
+        )
+        del messages[:remove_count]
+
+    if messages and sum(len(item.content) for item in messages) > max_characters:
+        remaining = max_characters
+        bounded: list[HistoryMessage] = []
+        for index, message in enumerate(messages):
+            messages_left = len(messages) - index
+            allowance = remaining // messages_left
+            if allowance <= 0:
+                break
+            content = message.content[:allowance]
+            bounded.append(HistoryMessage(role=message.role, content=content))
+            remaining -= len(content)
+        messages = bounded
+
+    return messages
 
 
 def update_owned_conversation(

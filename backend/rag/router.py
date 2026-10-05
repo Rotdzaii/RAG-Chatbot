@@ -12,11 +12,13 @@ from database import SessionLocal
 from rag.conversations import (
     create_title_from_question,
     get_owned_conversation,
+    list_recent_owned_messages,
     update_owned_conversation,
 )
 from rag.ingestion import ingest_document
 from rag.models import Conversation, Message
 from rag.qa import answer_question
+from rag.query_processing import QueryProcessingError
 
 
 router = APIRouter()
@@ -70,7 +72,24 @@ def answer_question_request(
             if conversation is None:
                 raise HTTPException(status_code=404, detail="Conversation not found")
 
-        result = answer_question(session, request.question, top_k=request.top_k)
+        if conversation is None:
+            result = answer_question(
+                session,
+                request.question,
+                top_k=request.top_k,
+            )
+        else:
+            history = list_recent_owned_messages(
+                session,
+                conversation.id,
+                authenticated_user.id,
+            )
+            result = answer_question(
+                session,
+                request.question,
+                top_k=request.top_k,
+                history=history,
+            )
         sources = [
             QuestionSource(
                 citation=citation,
@@ -134,6 +153,11 @@ def answer_question_request(
         )
     except HTTPException:
         raise
+    except QueryProcessingError as error:
+        session.rollback()
+        raise HTTPException(
+            status_code=503, detail="Question processing is unavailable"
+        ) from error
     except (
         SQLAlchemyError,
         GoogleGenerativeAIError,

@@ -20,6 +20,7 @@ fake_config.settings = SimpleNamespace(
 sys.modules.setdefault("config", fake_config)
 
 from rag.qa import QuestionAnswer, answer_question  # noqa: E402
+from rag.query_processing import QueryProcessingResult  # noqa: E402
 from rag.retrieval import RetrievedChunk  # noqa: E402
 from rag.tracing import LangChainTraceHandler  # noqa: E402
 
@@ -55,6 +56,16 @@ def pipeline_result() -> dict[str, object]:
     }
 
 
+def processed_query(question: str) -> QueryProcessingResult:
+    return QueryProcessingResult(
+        action="search",
+        standalone_query=question,
+        clarification=None,
+        history_used=False,
+        elapsed_ms=1.0,
+    )
+
+
 class TraceAttachmentTests(unittest.TestCase):
     def test_disabled_tracing_does_not_attach_callback(self) -> None:
         session = Mock()
@@ -63,6 +74,10 @@ class TraceAttachmentTests(unittest.TestCase):
 
         with (
             patch.dict(sys.modules, {"config": runtime_config(False)}),
+            patch(
+                "rag.qa.process_query",
+                return_value=processed_query("Question"),
+            ),
             patch("rag.qa.build_rag_pipeline", return_value=pipeline),
             patch("rag.qa.LangChainTraceHandler") as handler_class,
         ):
@@ -81,6 +96,10 @@ class TraceAttachmentTests(unittest.TestCase):
 
         with (
             patch.dict(sys.modules, {"config": runtime_config(True)}),
+            patch(
+                "rag.qa.process_query",
+                return_value=processed_query("Question"),
+            ),
             patch("rag.qa.build_rag_pipeline", return_value=pipeline),
             patch("rag.qa.LangChainTraceHandler") as handler_class,
         ):
@@ -111,6 +130,10 @@ class TraceAttachmentTests(unittest.TestCase):
 
         with (
             patch.dict(sys.modules, {"config": runtime_config(True)}),
+            patch(
+                "rag.qa.process_query",
+                return_value=processed_query(QUESTION),
+            ),
             patch(
                 "rag.langchain_retriever.retrieve_chunks", return_value=[chunk]
             ),
