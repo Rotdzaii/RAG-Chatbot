@@ -18,6 +18,8 @@ sys.modules.setdefault("config", fake_config)
 from auth import AuthenticatedUser, get_authenticated_user
 from main import app
 from rag.qa import QuestionAnswer
+from rag.provider_errors import ProviderCallError
+from rag.query_processing import HistoryMessage, QueryProcessingError
 from rag.retrieval import RetrievedChunk
 
 
@@ -202,6 +204,7 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         with (
             patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.list_recent_owned_messages") as recent_history,
             patch("rag.router.answer_question") as answer_question,
         ):
             response = self.client.post(
@@ -213,6 +216,7 @@ class QuestionAnswerApiTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 404)
+        recent_history.assert_not_called()
         answer_question.assert_not_called()
         self.assertEqual(session.scalar.call_count, 1)
         session.rollback.assert_not_called()
@@ -225,13 +229,21 @@ class QuestionAnswerApiTests(unittest.TestCase):
         conversation_id = uuid4()
         conversation = SimpleNamespace(id=conversation_id, user_id=self.user_id)
         session.scalar.side_effect = [conversation, conversation]
+        history = [
+            HistoryMessage(role="user", content="Earlier question"),
+            HistoryMessage(role="assistant", content="Earlier answer"),
+        ]
 
         with (
             patch("rag.router.SessionLocal", return_value=session),
             patch(
+                "rag.router.list_recent_owned_messages",
+                return_value=history,
+            ) as recent_history,
+            patch(
                 "rag.router.answer_question",
                 return_value=QuestionAnswer(answer="Answer", sources=[]),
-            ),
+            ) as answer_question,
         ):
             response = self.client.post(
                 "/questions",
@@ -243,6 +255,17 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["conversation_id"], str(conversation_id))
+        recent_history.assert_called_once_with(
+            session,
+            conversation_id,
+            self.user_id,
+        )
+        answer_question.assert_called_once_with(
+            session,
+            "Follow up",
+            top_k=5,
+            history=history,
+        )
         session.add.assert_not_called()
         messages = session.add_all.call_args.args[0]
         self.assertEqual(len(messages), 2)
@@ -266,6 +289,114 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         session.add.assert_called_once()
+        self.assertEqual(len(session.add_all.call_args.args[0]), 2)
+        session.commit.assert_called_once_with()
+        session.rollback.assert_called_once_with()
+
+    def test_query_processing_failure_is_distinct_and_persists_nothing(self) -> None:
+        session = Mock()
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.answer_question",
+                side_effect=QueryProcessingError("provider failed"),
+            ),
+        ):
+            response = self.client.post("/questions", json={"question": "Question"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Question processing is unavailable"},
+        )
+        session.rollback.assert_called_once_with()
+        session.add.assert_not_called()
+        session.add_all.assert_not_called()
+        session.commit.assert_not_called()
+
+    def test_generation_provider_diagnostics_keep_generic_http_response(self) -> None:
+        session = Mock()
+        provider_error = ProviderCallError(
+            error_stage="generation",
+            cause_type="GoogleRateLimitError",
+            provider_error_kind="rate_limit",
+            provider_status_code=None,
+            elapsed_ms=25.0,
+        )
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.answer_question", side_effect=provider_error),
+        ):
+            response = self.client.post("/questions", json={"question": "Question"})
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(
+            response.json(),
+            {"detail": "Question answering is unavailable"},
+        )
+        self.assertNotIn("GoogleRateLimitError", response.text)
+        session.rollback.assert_called_once_with()
+        session.add.assert_not_called()
+        session.add_all.assert_not_called()
+        session.commit.assert_not_called()
+
+    def test_clarification_is_saved_through_the_existing_message_flow(self) -> None:
+        session = Mock()
+        clarification = "Bạn đang muốn hỏi về ngành nào?"
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.answer_question",
+                return_value=QuestionAnswer(
+                    answer=clarification,
+                    sources=[],
+                    query_processing_action="clarify",
+                ),
+            ),
+        ):
+            response = self.client.post(
+                "/questions",
+                json={"question": "Ngành này học bao lâu?"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["answer"], clarification)
+        self.assertEqual(response.json()["sources"], [])
+        messages = session.add_all.call_args.args[0]
+        self.assertEqual(
+            [(message.role, message.content) for message in messages],
+            [
+                ("user", "Ngành này học bao lâu?"),
+                ("assistant", clarification),
+            ],
+        )
+        self.assertEqual(messages[1].citations, [])
+        session.commit.assert_called_once_with()
+
+    def test_clarification_persistence_failure_rolls_back_both_messages(self) -> None:
+        session = Mock()
+        session.commit.side_effect = SQLAlchemyError("write failed")
+
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.answer_question",
+                return_value=QuestionAnswer(
+                    answer="Bạn đang muốn hỏi về ngành nào?",
+                    sources=[],
+                    query_processing_action="clarify",
+                ),
+            ),
+        ):
+            response = self.client.post(
+                "/questions",
+                json={"question": "Ngành này học bao lâu?"},
+            )
+
+        self.assertEqual(response.status_code, 503)
         self.assertEqual(len(session.add_all.call_args.args[0]), 2)
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()

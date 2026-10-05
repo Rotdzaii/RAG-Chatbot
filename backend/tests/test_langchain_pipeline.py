@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from langchain_core.messages import AIMessage
 from langchain_core.runnables import RunnableLambda
+from langchain_google_genai.chat_models import GoogleRateLimitError
 from pydantic import SecretStr
 from sqlalchemy.orm import Session
 
@@ -24,6 +25,7 @@ from rag.langchain_pipeline import (  # noqa: E402
     _get_chat_model,
     build_rag_pipeline,
 )
+from rag.provider_errors import ProviderCallError  # noqa: E402
 from rag.retrieval import RetrievedChunk  # noqa: E402
 
 
@@ -168,6 +170,43 @@ class LangChainPipelineTests(unittest.TestCase):
         ):
             with self.assertRaisesRegex(RuntimeError, "generation failed"):
                 build_rag_pipeline(session).invoke({"question": "Question"})
+
+    def test_generation_rate_limit_is_wrapped_at_provider_boundary(self) -> None:
+        session = Mock(spec=Session)
+        chunks = [retrieved_chunk("guide.txt", 0, "Context")]
+        provider_error = GoogleRateLimitError(
+            "secret response https://provider.invalid?key=secret"
+        )
+
+        def fail(_: object) -> AIMessage:
+            raise provider_error
+
+        model = RunnableLambda(fail)
+        with (
+            patch(
+                "rag.langchain_retriever.retrieve_chunks", return_value=chunks
+            ),
+            patch("rag.langchain_pipeline._get_chat_model", return_value=model),
+            patch(
+                "rag.langchain_pipeline.time.perf_counter",
+                side_effect=[30.0, 30.075],
+            ),
+        ):
+            with self.assertRaises(ProviderCallError) as captured:
+                build_rag_pipeline(session).invoke({"question": "Question"})
+
+        error = captured.exception
+        self.assertIs(error.__cause__, provider_error)
+        self.assertEqual(error.error_stage, "generation")
+        self.assertEqual(error.category, "provider")
+        self.assertEqual(error.provider_error_kind, "rate_limit")
+        self.assertEqual(error.cause_type, "GoogleRateLimitError")
+        self.assertIsNone(error.provider_status_code)
+        self.assertAlmostEqual(error.elapsed_ms, 75.0)
+        self.assertEqual(str(error), "Provider call failed")
+        self.assertNotIn("secret response", str(error))
+        self.assertNotIn("provider.invalid", str(error))
+        self.assertNotIn("key=secret", str(error))
 
 
 if __name__ == "__main__":
