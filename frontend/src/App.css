@@ -664,12 +664,23 @@ textarea:focus-visible,
 }
 
 .waiting-message { color: var(--vlu-red); }
+.answer-content { white-space: normal; }
+.answer-content > :first-child { margin-top: 0; }
+.answer-content > :last-child { margin-bottom: 0; }
+.answer-content p { margin: 0 0 10px; }
+.answer-content ul, .answer-content ol { margin: 8px 0 12px; padding-left: 23px; }
+.answer-content li + li { margin-top: 5px; }
+.answer-content a { color: var(--vlu-red); text-decoration: underline; }
+.answer-content pre { overflow-x: auto; padding: 10px; background: #f5f5f7; border-radius: 7px; }
+.answer-content code { overflow-wrap: anywhere; }
+.answer-content table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
+.answer-content th, .answer-content td { padding: 5px 8px; border: 1px solid #e2dfdc; }
+.answer-content h1, .answer-content h2, .answer-content h3 { line-height: 1.4; }
 .answer-sources { margin-top: 16px; padding-top: 12px; border-top: 1px solid #e5e2df; }
 .answer-sources h2 { margin: 0 0 8px; color: #666c7a; font-size: 11px; font-weight: 650; }
 .source-list { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
 
 .source-card {
-  display: flex;
   min-width: 0;
   max-width: 100%;
   align-items: flex-start;
@@ -684,9 +695,10 @@ textarea:focus-visible,
 }
 
 .citation-number { flex: 0 0 auto; color: var(--vlu-red); font-weight: 700; }
-.source-card > div { min-width: 0; }
 .source-filename { display: block; overflow-wrap: anywhere; font-weight: 650; }
-.source-index { display: block; color: #737987; font-size: 10.5px; }
+.source-passages { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 4px 0 0; padding: 0; list-style: none; }
+.source-passages li { display: flex; gap: 4px; white-space: nowrap; }
+.source-index { color: #737987; font-size: 10.5px; }
 .message-error p { margin: 0 0 9px; color: #98283a; font-size: 13px; line-height: 1.6; }
 
 .retry-button {
