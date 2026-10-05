@@ -28,6 +28,8 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
                     "document_id": str(chunk.document_id),
                     "filename": chunk.filename,
                     "chunk_index": chunk.chunk_index,
+                    "page_start": chunk.page_start,
+                    "page_end": chunk.page_end,
                     "cosine_distance": float(chunk.cosine_distance),
                 },
             )

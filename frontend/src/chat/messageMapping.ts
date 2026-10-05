@@ -9,6 +9,8 @@ function isQuestionSource(value: unknown): value is QuestionSource {
     && typeof source.document_id === 'string'
     && typeof source.filename === 'string'
     && typeof source.chunk_index === 'number'
+    && (source.page_start === undefined || source.page_start === null || typeof source.page_start === 'number')
+    && (source.page_end === undefined || source.page_end === null || typeof source.page_end === 'number')
     && typeof source.cosine_distance === 'number'
 }
 

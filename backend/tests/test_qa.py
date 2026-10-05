@@ -20,7 +20,14 @@ from rag.query_processing import (  # noqa: E402
 )
 
 
-def source_document(filename: str, index: int, content: str) -> Document:
+def source_document(
+    filename: str,
+    index: int,
+    content: str,
+    *,
+    page_start: int | None = None,
+    page_end: int | None = None,
+) -> Document:
     return Document(
         page_content=content,
         metadata={
@@ -28,6 +35,8 @@ def source_document(filename: str, index: int, content: str) -> Document:
             "document_id": str(uuid4()),
             "filename": filename,
             "chunk_index": index,
+            "page_start": page_start,
+            "page_end": page_end,
             "cosine_distance": 0.1 + index / 100,
         },
     )
@@ -52,11 +61,24 @@ class AnswerQuestionTests(unittest.TestCase):
         session = Mock()
         documents = [
             source_document("first.txt", 1, "First source."),
-            source_document("second.pdf", 2, "Second source."),
+            source_document(
+                "second.pdf",
+                2,
+                "Second source.",
+                page_start=4,
+                page_end=6,
+            ),
+            source_document(
+                "third.pdf",
+                3,
+                "Third source.",
+                page_start=9,
+                page_end=9,
+            ),
         ]
         pipeline = Mock()
         pipeline.invoke.return_value = {
-            "answer": "Answer [1] [2]",
+            "answer": "Answer [1] [2] [3]",
             "documents": documents,
         }
 
@@ -67,20 +89,24 @@ class AnswerQuestionTests(unittest.TestCase):
             ) as process,
             patch("rag.qa.build_rag_pipeline", return_value=pipeline) as build,
         ):
-            result = answer_question(session, "What is this?", top_k=2)
+            result = answer_question(session, "What is this?", top_k=3)
 
         self.assertIsInstance(result, QuestionAnswer)
-        self.assertEqual(result.answer, "Answer [1] [2]")
+        self.assertEqual(result.answer, "Answer [1] [2] [3]")
         self.assertEqual(
             [source.filename for source in result.sources],
-            ["first.txt", "second.pdf"],
+            ["first.txt", "second.pdf", "third.pdf"],
         )
         self.assertEqual(
             [source.content for source in result.sources],
-            ["First source.", "Second source."],
+            ["First source.", "Second source.", "Third source."],
         )
         self.assertEqual(
-            [source.chunk_index for source in result.sources], [1, 2]
+            [source.chunk_index for source in result.sources], [1, 2, 3]
+        )
+        self.assertEqual(
+            [(source.page_start, source.page_end) for source in result.sources],
+            [(None, None), (4, 6), (9, 9)],
         )
         self.assertTrue(
             all(isinstance(source.chunk_id, UUID) for source in result.sources)
@@ -91,7 +117,7 @@ class AnswerQuestionTests(unittest.TestCase):
         self.assertTrue(
             all(isinstance(source.cosine_distance, float) for source in result.sources)
         )
-        build.assert_called_once_with(session, top_k=2)
+        build.assert_called_once_with(session, top_k=3)
         process.assert_called_once_with("What is this?", ())
         pipeline.invoke.assert_called_once_with({"question": "What is this?"})
         self.assertEqual(result.query_processing_action, "search")

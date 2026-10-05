@@ -1,5 +1,6 @@
 import type { RefObject } from 'react'
 import type { ChatTurn } from './types'
+import { formatSourceLocator } from './sourceLocator'
 
 type ChatTranscriptProps = {
   turns: ChatTurn[]
@@ -34,7 +35,7 @@ export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry 
                             <span className="citation-number" aria-label={`Trích dẫn ${source.citation}`}>[{source.citation}]</span>
                             <div>
                               <span className="source-filename">{source.filename}</span>
-                              <span className="source-index">Đoạn {source.chunk_index}</span>
+                              <span className="source-index">{formatSourceLocator(source)}</span>
                             </div>
                           </li>
                         ))}

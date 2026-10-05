@@ -35,6 +35,8 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                 chunk_index=4,
                 content="First result",
                 cosine_distance=0.1,
+                page_start=7,
+                page_end=7,
             ),
             RetrievedChunk(
                 chunk_id=second_chunk_id,
@@ -67,6 +69,8 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                     "document_id": str(first_document_id),
                     "filename": "handbook.pdf",
                     "chunk_index": 4,
+                    "page_start": 7,
+                    "page_end": 7,
                     "cosine_distance": 0.1,
                 },
                 {
@@ -74,6 +78,8 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                     "document_id": str(second_document_id),
                     "filename": "policy.txt",
                     "chunk_index": 1,
+                    "page_start": None,
+                    "page_end": None,
                     "cosine_distance": 0.2,
                 },
             ],

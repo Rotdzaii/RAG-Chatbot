@@ -25,6 +25,8 @@ class RetrieveChunksTests(unittest.TestCase):
                 "document_id": document_id,
                 "filename": "notes.txt",
                 "chunk_index": 2,
+                "page_start": 3,
+                "page_end": 5,
                 "content": "matching content",
                 "cosine_distance": 0.25,
             }
@@ -41,6 +43,8 @@ class RetrieveChunksTests(unittest.TestCase):
                     document_id=document_id,
                     filename="notes.txt",
                     chunk_index=2,
+                    page_start=3,
+                    page_end=5,
                     content="matching content",
                     cosine_distance=0.25,
                 )
@@ -52,6 +56,8 @@ class RetrieveChunksTests(unittest.TestCase):
         statement = session.execute.call_args.args[0]
         statement_sql = str(statement)
         self.assertIn("JOIN documents", statement_sql)
+        self.assertIn("chunks.page_start", statement_sql)
+        self.assertIn("chunks.page_end", statement_sql)
         self.assertIn("chunks.embedding IS NOT NULL", statement_sql)
         self.assertIn("ORDER BY", statement_sql)
         self.assertEqual(statement._limit_clause.value, 3)

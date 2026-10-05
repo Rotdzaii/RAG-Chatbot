@@ -13,6 +13,8 @@ export type QuestionSource = {
   document_id: string
   filename: string
   chunk_index: number
+  page_start?: number | null
+  page_end?: number | null
   cosine_distance: number
 }
 
