@@ -1,6 +1,6 @@
 import unittest
 
-from rag.chunking import chunk_text
+from rag.chunking import chunk_text, chunk_text_with_offsets
 
 
 class ChunkTextTests(unittest.TestCase):
@@ -18,6 +18,17 @@ class ChunkTextTests(unittest.TestCase):
 
         self.assertEqual(chunks[0][-2:], chunks[1][:2])
         self.assertEqual(chunks[1][-2:], chunks[2][:2])
+
+    def test_reports_offsets_after_trimming_chunk_whitespace(self) -> None:
+        chunks = chunk_text_with_offsets("  abcdef  ", chunk_size=7, overlap=2)
+
+        self.assertEqual(
+            [
+                (chunk.content, chunk.start_offset, chunk.end_offset)
+                for chunk in chunks
+            ],
+            [("abcde", 2, 7), ("def", 5, 8)],
+        )
 
     def test_rejects_whitespace_only_text(self) -> None:
         with self.assertRaisesRegex(ValueError, "Text must not be empty"):

@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from pypdf.errors import PdfReadError
 
-from rag.extraction import extract_text
+from rag.extraction import extract_content, extract_text
 
 
 def create_two_page_pdf(first_page: str, second_page: str) -> bytes:
@@ -84,6 +84,30 @@ class ExtractTextTests(unittest.TestCase):
 
             self.assertEqual(result, "Trang mot\n\nTrang hai")
             self.assertFalse(temporary_path.exists())
+
+    def test_records_one_based_spans_for_each_nonempty_pdf_page(self) -> None:
+        extracted = extract_content(
+            create_two_page_pdf("Trang mot", "Trang hai"),
+            "application/pdf",
+        )
+
+        self.assertEqual(extracted.text, "Trang mot\n\nTrang hai")
+        self.assertEqual(
+            [
+                (span.page_number, span.start_offset, span.end_offset)
+                for span in extracted.page_spans
+            ],
+            [(1, 0, 9), (2, 11, 20)],
+        )
+
+    def test_preserves_original_page_number_when_an_empty_page_is_skipped(self) -> None:
+        extracted = extract_content(
+            create_two_page_pdf("", "Trang hai"),
+            "application/pdf",
+        )
+
+        self.assertEqual(extracted.text, "Trang hai")
+        self.assertEqual(extracted.page_spans[0].page_number, 2)
 
     def test_rejects_invalid_pdf_and_cleans_up(self) -> None:
         with TemporaryDirectory() as directory:

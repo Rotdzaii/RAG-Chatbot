@@ -22,7 +22,7 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
-from rag.models import Conversation, Document, Message  # noqa: E402
+from rag.models import Chunk, Conversation, Document, Message  # noqa: E402
 
 
 class DocumentMetadataTests(unittest.TestCase):
@@ -147,6 +147,23 @@ class ConversationHistoryModelTests(unittest.TestCase):
     def test_invalid_message_role_is_rejected(self) -> None:
         with self.assertRaisesRegex(ValueError, "Message role"):
             Message(role="system", content="invalid")
+
+
+class ChunkProvenanceModelTests(unittest.TestCase):
+    def test_page_range_columns_are_nullable_and_constrained(self) -> None:
+        table = Chunk.__table__
+
+        for name in ("page_start", "page_end"):
+            self.assertTrue(table.c[name].nullable)
+
+        checks = {
+            constraint.name: str(constraint.sqltext)
+            for constraint in table.constraints
+            if isinstance(constraint, CheckConstraint)
+        }
+        self.assertIn("ck_chunks_page_range", checks)
+        self.assertIn("page_start >= 1", checks["ck_chunks_page_range"])
+        self.assertIn("page_end >= page_start", checks["ck_chunks_page_range"])
 
 
 if __name__ == "__main__":
