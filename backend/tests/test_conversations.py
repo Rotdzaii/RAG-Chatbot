@@ -19,11 +19,13 @@ from auth import AuthenticatedUser, get_authenticated_user  # noqa: E402
 from main import app  # noqa: E402
 from rag.conversations import (  # noqa: E402
     AUTO_TITLE_MAX_LENGTH,
+    HISTORY_MAX_MESSAGES,
     create_title_from_question,
     delete_owned_conversation,
     get_owned_conversation,
     list_owned_conversations,
     list_owned_messages,
+    list_recent_owned_messages,
     update_owned_conversation,
 )
 
@@ -98,6 +100,55 @@ class ConversationQueryTests(unittest.TestCase):
         self.assertIn("JOIN conversations", sql)
         self.assertIn("conversations.user_id =", sql)
         self.assertIn("ORDER BY messages.created_at ASC", sql)
+
+    def test_recent_history_is_owned_limited_ordered_and_bounded(self) -> None:
+        session = Mock(spec=Session)
+        conversation_id = uuid4()
+        user_id = uuid4()
+        chronological = [
+            SimpleNamespace(
+                role="user" if index % 2 == 0 else "assistant",
+                content=f"message-{index}",
+            )
+            for index in range(14)
+        ]
+        session.scalars.return_value = list(reversed(chronological))
+
+        history = list_recent_owned_messages(
+            session,
+            conversation_id,
+            user_id,
+        )
+
+        self.assertEqual(HISTORY_MAX_MESSAGES, 12)
+        self.assertEqual(
+            [message.content for message in history],
+            [f"message-{index}" for index in range(2, 14)],
+        )
+        statement = session.scalars.call_args.args[0]
+        sql = str(statement)
+        self.assertIn("JOIN conversations", sql)
+        self.assertIn("conversations.user_id =", sql)
+        self.assertIn("ORDER BY messages.created_at DESC", sql)
+        self.assertEqual(statement._limit_clause.value, HISTORY_MAX_MESSAGES)
+        self.assertIn(conversation_id, statement.compile().params.values())
+        self.assertIn(user_id, statement.compile().params.values())
+
+        session.scalars.return_value = [
+            SimpleNamespace(role="assistant", content="newest"),
+            SimpleNamespace(role="user", content="older-value"),
+        ]
+        bounded = list_recent_owned_messages(
+            session,
+            conversation_id,
+            user_id,
+            max_characters=10,
+        )
+        self.assertEqual(
+            [message.role for message in bounded],
+            ["user", "assistant"],
+        )
+        self.assertLessEqual(sum(len(message.content) for message in bounded), 10)
 
     def test_update_and_delete_statements_include_owner_filter(self) -> None:
         session = Mock(spec=Session)

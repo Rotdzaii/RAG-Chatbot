@@ -341,6 +341,24 @@ uv run --no-sync python ../scripts/run_rag_baseline.py ../evals/cases/marketing_
 
 Bỏ `--dry-run` để chạy live sau khi có case approved. Trước lượt live đầu tiên, runner so fingerprint corpus/config đang phục vụ với snapshot và dừng nếu khác. Run output nằm dưới `data/rag_runs/`, đã được quy tắc `data/*` loại khỏi Git; file có sẵn không bị ghi đè nếu không truyền `--overwrite`.
 
+### 7.8. P1.2 — Runner đánh giá multi-turn
+
+Runner P1 truyền nguyên câu hỏi và history fixture đã duyệt vào `rag.qa.answer_question`, ghi action `search|clarify`, standalone query thực tế, latency query processing và kết quả retrieval/generation của chính lượt gọi đó. Runner không tạo conversation/message và không gọi rewrite hoặc retrieval lần hai chỉ để quan sát.
+
+Chạy dry-run offline từ thư mục `backend`:
+
+```powershell
+uv run --no-sync python ../scripts/run_rag_multiturn_eval.py ../evals/cases/marketing_p0.json --snapshot ../data/rag_snapshots/current.json --output ../data/rag_runs/marketing_p1_dry.json --dry-run
+```
+
+Sau khi kiểm tra dry-run, bỏ `--dry-run` và dùng tên output mới để chạy live:
+
+```powershell
+uv run --no-sync python ../scripts/run_rag_multiturn_eval.py ../evals/cases/marketing_p0.json --snapshot ../data/rag_snapshots/current.json --output ../data/rag_runs/marketing_p1_live.json
+```
+
+Trước live run, P1 so SHA-256 canonical của `documents+chunks` giữa database và snapshot, đồng thời so riêng cấu hình extraction/chunking/embedding/retrieval với P0. Full snapshot fingerprint vẫn được ghi để truy vết nhưng không được dùng thay corpus fingerprint vì query-processing config đã thay đổi ở P1. Kiểm tra corpus chỉ xác nhận metadata `embedding_present` và `embedding_dimension`; snapshot không chứa vector đầy đủ nên không xác minh được từng giá trị vector.
+
 ## 8. Xử lý lỗi
 
 ### 8.1. Hiện có

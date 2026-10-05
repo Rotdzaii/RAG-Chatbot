@@ -41,6 +41,7 @@ def current_pipeline_config() -> dict[str, object]:
     from rag.langchain_pipeline import MODEL as generation_model
     from rag.langchain_pipeline import SYSTEM_INSTRUCTION
     from rag.qa import answer_question
+    from rag.query_contract import query_processing_config
     from rag.retrieval import MAX_COSINE_DISTANCE
 
     chunk_signature = inspect.signature(chunk_text)
@@ -74,12 +75,7 @@ def current_pipeline_config() -> dict[str, object]:
                 "reason": "documents/chunks schema does not store embedding model or version",
             },
         },
-        "query_processing": {
-            "history_used_for_rag": False,
-            "query_rewriting": False,
-            "rewritten_query": None,
-            "configured_from": "backend/rag/qa.py and backend/rag/router.py",
-        },
+        "query_processing": query_processing_config(),
         "retrieval": {
             "distance": "cosine",
             "max_cosine_distance": MAX_COSINE_DISTANCE,

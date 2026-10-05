@@ -1,3 +1,4 @@
+import time
 from typing import Any
 
 from langchain_core.documents import Document
@@ -9,11 +10,14 @@ from langchain_core.runnables import (
     RunnableLambda,
     RunnablePassthrough,
 )
+from langchain_core.runnables.config import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_google_genai.chat_models import GoogleRateLimitError
 from pydantic import SecretStr
 from sqlalchemy.orm import Session
 
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
+from rag.provider_errors import wrap_rate_limit_error
 
 
 MODEL = "gemini-3.8-flash"
@@ -56,6 +60,24 @@ def _require_answer(answer: str) -> str:
     return answer.strip()
 
 
+def _invoke_generation_model(
+    model: Runnable,
+    prompt: Any,
+    config: RunnableConfig,
+) -> Any:
+    started_at = time.perf_counter()
+    try:
+        return model.invoke(prompt, config=config)
+    except GoogleRateLimitError as error:
+        elapsed_ms = (time.perf_counter() - started_at) * 1000
+        wrapped = wrap_rate_limit_error(
+            error,
+            error_stage="generation",
+            elapsed_ms=elapsed_ms,
+        )
+        raise wrapped from error
+
+
 def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
     model = _get_chat_model().with_config(
         run_name="gemini_answer_generation",
@@ -72,7 +94,12 @@ def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
             run_name="grounded_answer_prompt",
             tags=["rag", "prompt"],
         )
-        | model
+        | RunnableLambda(
+            lambda prompt, config: _invoke_generation_model(
+                model, prompt, config
+            ),
+            name="invoke_generation_model",
+        )
         | StrOutputParser().with_config(
             run_name="parse_model_answer",
             tags=["rag", "generation"],
