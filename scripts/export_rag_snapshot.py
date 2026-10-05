@@ -38,6 +38,11 @@ def current_pipeline_config() -> dict[str, object]:
     from rag.chunking import chunk_text
     from rag.embeddings import MODEL as embedding_model
     from rag.embeddings import OUTPUT_DIMENSIONALITY
+    from rag.index_provenance import (
+        BASELINE_EMBEDDING_PROFILE,
+        CHUNKING_PROFILE,
+        current_embedding_profile,
+    )
     from rag.langchain_pipeline import MODEL as generation_model
     from rag.langchain_pipeline import SYSTEM_INSTRUCTION
     from rag.qa import answer_question
@@ -60,6 +65,7 @@ def current_pipeline_config() -> dict[str, object]:
             "strategy": "fixed_character_window",
             "chunk_size": chunk_signature.parameters["chunk_size"].default,
             "overlap": chunk_signature.parameters["overlap"].default,
+            "new_document_profile": CHUNKING_PROFILE,
             "configured_from": "backend/rag/chunking.py",
         },
         "embedding": {
@@ -72,7 +78,7 @@ def current_pipeline_config() -> dict[str, object]:
             "persisted_provenance": {
                 "model": "unknown",
                 "version": "unknown",
-                "reason": "documents/chunks schema does not store embedding model or version",
+                "reason": "snapshot schema 1.0 does not export per-document profiles; legacy rows are null",
             },
         },
         "query_processing": query_processing_config(),
@@ -80,6 +86,10 @@ def current_pipeline_config() -> dict[str, object]:
             "distance": "cosine",
             "max_cosine_distance": MAX_COSINE_DISTANCE,
             "default_top_k": answer_signature.parameters["top_k"].default,
+            "compatible_embedding_profile": current_embedding_profile(),
+            "legacy_null_profile_allowed": (
+                current_embedding_profile() == BASELINE_EMBEDDING_PROFILE
+            ),
             "configured_from": "backend/rag/retrieval.py and backend/rag/qa.py",
         },
         "generation": {

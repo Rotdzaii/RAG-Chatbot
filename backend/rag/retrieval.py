@@ -1,10 +1,11 @@
 from dataclasses import dataclass
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from rag.embeddings import embed_query
+from rag.index_provenance import BASELINE_EMBEDDING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document
 
 
@@ -32,6 +33,14 @@ def retrieve_chunks(
         raise ValueError("top_k must be between 1 and 20")
 
     query_vector = embed_query(query)
+    profile = current_embedding_profile()
+    compatible_profile = Document.embedding_profile == profile
+    if profile == BASELINE_EMBEDDING_PROFILE:
+        # Pre-migration documents have unknown provenance. Keep the existing
+        # baseline usable, but stop including them if the embedding config changes.
+        compatible_profile = or_(
+            compatible_profile, Document.embedding_profile.is_(None)
+        )
     cosine_distance = Chunk.embedding.cosine_distance(query_vector)
     statement = (
         select(
@@ -46,6 +55,7 @@ def retrieve_chunks(
         )
         .join(Document, Chunk.document_id == Document.id)
         .where(Chunk.embedding.is_not(None))
+        .where(compatible_profile)
         .where(cosine_distance <= MAX_COSINE_DISTANCE)
         .order_by(cosine_distance)
         .limit(top_k)

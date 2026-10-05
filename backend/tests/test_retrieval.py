@@ -12,6 +12,7 @@ fake_config.settings = SimpleNamespace(
 sys.modules.setdefault("config", fake_config)
 
 from rag.retrieval import MAX_COSINE_DISTANCE, RetrievedChunk, retrieve_chunks
+from rag.index_provenance import BASELINE_EMBEDDING_PROFILE
 
 
 class RetrieveChunksTests(unittest.TestCase):
@@ -59,6 +60,8 @@ class RetrieveChunksTests(unittest.TestCase):
         self.assertIn("chunks.page_start", statement_sql)
         self.assertIn("chunks.page_end", statement_sql)
         self.assertIn("chunks.embedding IS NOT NULL", statement_sql)
+        self.assertIn("documents.embedding_profile =", statement_sql)
+        self.assertIn("documents.embedding_profile IS NULL", statement_sql)
         self.assertIn("ORDER BY", statement_sql)
         self.assertEqual(statement._limit_clause.value, 3)
 
@@ -78,6 +81,30 @@ class RetrieveChunksTests(unittest.TestCase):
         self.assertLess(statement_sql.index("WHERE"), statement_sql.index("ORDER BY"))
         self.assertLess(statement_sql.index("ORDER BY"), statement_sql.index("LIMIT"))
         self.assertEqual(statement._limit_clause.value, 4)
+
+    def test_embedding_change_excludes_unverified_legacy_documents(self) -> None:
+        session = Mock()
+        session.execute.return_value.mappings.return_value = []
+
+        with (
+            patch("rag.retrieval.embed_query", return_value=[0.1] * 768),
+            patch(
+                "rag.retrieval.current_embedding_profile",
+                return_value="replacement-model:768:l2:v1",
+            ),
+        ):
+            retrieve_chunks(session, "search phrase")
+
+        statement = session.execute.call_args.args[0]
+        compiled = statement.compile()
+        self.assertIn("documents.embedding_profile =", str(compiled))
+        self.assertNotIn("documents.embedding_profile IS NULL", str(compiled))
+        self.assertIn("replacement-model:768:l2:v1", compiled.params.values())
+
+    def test_current_embedding_profile_matches_legacy_baseline(self) -> None:
+        from rag.index_provenance import current_embedding_profile
+
+        self.assertEqual(current_embedding_profile(), BASELINE_EMBEDDING_PROFILE)
 
     def test_rejects_blank_query_without_embedding_or_database_work(self) -> None:
         session = Mock()

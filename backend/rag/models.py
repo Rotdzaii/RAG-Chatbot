@@ -47,6 +47,8 @@ class Document(Base):
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     audience: Mapped[str | None] = mapped_column(String, nullable=True)
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    embedding_profile: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    chunking_profile: Mapped[str | None] = mapped_column(String(128), nullable=True)
     published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
