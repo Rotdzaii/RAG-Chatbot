@@ -14,6 +14,7 @@ sys.modules.setdefault("config", fake_config)
 from rag.chunking import TextChunk
 from rag.extraction import ExtractedContent
 from rag.ingestion import ingest_document
+from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 
 
 class IngestDocumentTests(unittest.TestCase):
@@ -46,6 +47,8 @@ class IngestDocumentTests(unittest.TestCase):
         self.assertEqual(
             document.content_hash, sha256(b"source content").hexdigest()
         )
+        self.assertEqual(document.embedding_profile, current_embedding_profile())
+        self.assertEqual(document.chunking_profile, CHUNKING_PROFILE)
         self.assertEqual([chunk.chunk_index for chunk in document.chunks], [0, 1])
         self.assertEqual([chunk.content for chunk in document.chunks], ["first", "second"])
         self.assertEqual(

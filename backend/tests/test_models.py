@@ -67,6 +67,12 @@ class DocumentMetadataTests(unittest.TestCase):
         self.assertEqual(content_hash.type.length, 64)
         self.assertTrue(content_hash.nullable)
 
+        for name in ("embedding_profile", "chunking_profile"):
+            column = self.table.c[name]
+            self.assertIsInstance(column.type, String)
+            self.assertEqual(column.type.length, 128)
+            self.assertTrue(column.nullable)  # No unverified legacy backfill.
+
     def test_source_timestamps_and_effective_dates(self) -> None:
         for name in ("published_at", "last_checked_at"):
             column = self.table.c[name]

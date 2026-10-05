@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from rag.chunking import TextChunk, chunk_text_with_offsets
 from rag.embeddings import embed_documents
 from rag.extraction import PageSpan, extract_content
+from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document
 
 
@@ -55,6 +56,8 @@ def ingest_document(
         filename=filename,
         mime_type=mime_type,
         content_hash=sha256(content).hexdigest(),
+        embedding_profile=current_embedding_profile(),
+        chunking_profile=CHUNKING_PROFILE,
         chunks=[
             _build_chunk(
                 index,
