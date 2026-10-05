@@ -61,6 +61,16 @@ def answer_question(
             document_id=UUID(str(document.metadata["document_id"])),
             filename=str(document.metadata["filename"]),
             chunk_index=int(document.metadata["chunk_index"]),
+            page_start=(
+                int(document.metadata["page_start"])
+                if document.metadata.get("page_start") is not None
+                else None
+            ),
+            page_end=(
+                int(document.metadata["page_end"])
+                if document.metadata.get("page_end") is not None
+                else None
+            ),
             content=document.page_content,
             cosine_distance=float(document.metadata["cosine_distance"]),
         )

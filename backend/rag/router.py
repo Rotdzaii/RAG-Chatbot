@@ -48,6 +48,8 @@ class QuestionSource(BaseModel):
     document_id: UUID
     filename: str
     chunk_index: int
+    page_start: int | None = None
+    page_end: int | None = None
     cosine_distance: float
 
 
@@ -97,6 +99,8 @@ def answer_question_request(
                 document_id=chunk.document_id,
                 filename=chunk.filename,
                 chunk_index=chunk.chunk_index,
+                page_start=chunk.page_start,
+                page_end=chunk.page_end,
                 cosine_distance=chunk.cosine_distance,
             )
             for citation, chunk in enumerate(result.sources, start=1)

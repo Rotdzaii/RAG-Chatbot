@@ -23,14 +23,22 @@ from rag.query_processing import HistoryMessage, QueryProcessingError
 from rag.retrieval import RetrievedChunk
 
 
-def retrieved_chunk(index: int) -> RetrievedChunk:
+def retrieved_chunk(
+    index: int,
+    *,
+    filename: str = "guide.txt",
+    page_start: int | None = None,
+    page_end: int | None = None,
+) -> RetrievedChunk:
     return RetrievedChunk(
         chunk_id=uuid4(),
         document_id=uuid4(),
-        filename="guide.txt",
+        filename=filename,
         chunk_index=index,
         content=f"Reference {index}",
         cosine_distance=index / 10,
+        page_start=page_start,
+        page_end=page_end,
     )
 
 
@@ -50,19 +58,33 @@ class QuestionAnswerApiTests(unittest.TestCase):
 
     def test_returns_answer_and_ordered_citations(self) -> None:
         session = Mock()
-        sources = [retrieved_chunk(4), retrieved_chunk(7)]
-        result = QuestionAnswer(answer="Answer [1]", sources=sources)
+        sources = [
+            retrieved_chunk(
+                4,
+                filename="single-page.pdf",
+                page_start=3,
+                page_end=3,
+            ),
+            retrieved_chunk(
+                7,
+                filename="page-range.pdf",
+                page_start=8,
+                page_end=10,
+            ),
+            retrieved_chunk(9),
+        ]
+        result = QuestionAnswer(answer="Answer [1] [2] [3]", sources=sources)
 
         with (
             patch("rag.router.SessionLocal", return_value=session),
             patch("rag.router.answer_question", return_value=result) as answer_question,
         ):
             response = self.client.post(
-                "/questions", json={"question": "  What is this?  ", "top_k": 2}
+                "/questions", json={"question": "  What is this?  ", "top_k": 3}
             )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["answer"], "Answer [1]")
+        self.assertEqual(response.json()["answer"], "Answer [1] [2] [3]")
         self.assertIsNotNone(response.json()["conversation_id"])
         self.assertEqual(
             response.json()["sources"],
@@ -71,21 +93,35 @@ class QuestionAnswerApiTests(unittest.TestCase):
                     "citation": 1,
                     "chunk_id": str(sources[0].chunk_id),
                     "document_id": str(sources[0].document_id),
-                    "filename": "guide.txt",
+                    "filename": "single-page.pdf",
                     "chunk_index": 4,
+                    "page_start": 3,
+                    "page_end": 3,
                     "cosine_distance": 0.4,
                 },
                 {
                     "citation": 2,
                     "chunk_id": str(sources[1].chunk_id),
                     "document_id": str(sources[1].document_id),
-                    "filename": "guide.txt",
+                    "filename": "page-range.pdf",
                     "chunk_index": 7,
+                    "page_start": 8,
+                    "page_end": 10,
                     "cosine_distance": 0.7,
+                },
+                {
+                    "citation": 3,
+                    "chunk_id": str(sources[2].chunk_id),
+                    "document_id": str(sources[2].document_id),
+                    "filename": "guide.txt",
+                    "chunk_index": 9,
+                    "page_start": None,
+                    "page_end": None,
+                    "cosine_distance": 0.9,
                 },
             ],
         )
-        answer_question.assert_called_once_with(session, "What is this?", top_k=2)
+        answer_question.assert_called_once_with(session, "What is this?", top_k=3)
         conversation = session.add.call_args.args[0]
         self.assertEqual(conversation.user_id, self.user_id)
         self.assertEqual(conversation.title, "What is this?")
@@ -93,7 +129,10 @@ class QuestionAnswerApiTests(unittest.TestCase):
         self.assertEqual(len(messages), 2)
         self.assertEqual(
             [(message.role, message.content) for message in messages],
-            [("user", "What is this?"), ("assistant", "Answer [1]")],
+            [
+                ("user", "What is this?"),
+                ("assistant", "Answer [1] [2] [3]"),
+            ],
         )
         self.assertIsNone(messages[0].citations)
         self.assertEqual(messages[1].citations, response.json()["sources"])

@@ -19,6 +19,8 @@ class RetrievedChunk:
     chunk_index: int
     content: str
     cosine_distance: float
+    page_start: int | None = None
+    page_end: int | None = None
 
 
 def retrieve_chunks(
@@ -37,6 +39,8 @@ def retrieve_chunks(
             Chunk.document_id.label("document_id"),
             Document.filename.label("filename"),
             Chunk.chunk_index.label("chunk_index"),
+            Chunk.page_start.label("page_start"),
+            Chunk.page_end.label("page_end"),
             Chunk.content.label("content"),
             cosine_distance.label("cosine_distance"),
         )
@@ -54,6 +58,8 @@ def retrieve_chunks(
             document_id=row["document_id"],
             filename=row["filename"],
             chunk_index=row["chunk_index"],
+            page_start=row["page_start"],
+            page_end=row["page_end"],
             content=row["content"],
             cosine_distance=float(row["cosine_distance"]),
         )
