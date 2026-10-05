@@ -70,6 +70,12 @@ class Document(Base):
 class Chunk(Base):
     __tablename__ = "chunks"
     __table_args__ = (
+        CheckConstraint(
+            "(page_start IS NULL AND page_end IS NULL) OR "
+            "(page_start IS NOT NULL AND page_end IS NOT NULL AND "
+            "page_start >= 1 AND page_end >= page_start)",
+            name="ck_chunks_page_range",
+        ),
         UniqueConstraint(
             "document_id", "chunk_index", name="uq_chunks_document_id_chunk_index"
         ),
@@ -88,6 +94,8 @@ class Chunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(VECTOR(768), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()"), nullable=False
