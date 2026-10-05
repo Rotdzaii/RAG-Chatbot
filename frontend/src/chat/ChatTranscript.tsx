@@ -1,12 +1,42 @@
-import type { RefObject } from 'react'
+import { lazy, Suspense, type RefObject } from 'react'
+import type { QuestionSource } from '../api'
 import type { ChatTurn } from './types'
 import { formatSourceLocator } from './sourceLocator'
+import { groupCitedSources } from './citedSources'
+
+const AnswerMarkdown = lazy(() => import('./AnswerMarkdown'))
 
 type ChatTranscriptProps = {
   turns: ChatTurn[]
   isRequestPending: boolean
   containerRef: RefObject<HTMLDivElement | null>
   onRetry: (question: string, turnId: string) => void
+}
+
+function AnswerSources({ answer, sources }: { answer: string; sources: QuestionSource[] }) {
+  const groups = groupCitedSources(answer, sources)
+  if (groups.length === 0) return null
+
+  return (
+    <div className="answer-sources">
+      <h2>Nguồn tham chiếu</h2>
+      <ol className="source-list">
+        {groups.map((group) => (
+          <li className="source-card" key={group.documentId}>
+            <span className="source-filename">{group.filename}</span>
+            <ol className="source-passages" aria-label={`Các đoạn trích dẫn trong ${group.filename}`}>
+              {group.sources.map((source) => (
+                <li key={source.chunk_id}>
+                  <span className="citation-number" aria-label={`Trích dẫn ${source.citation}`}>[{source.citation}]</span>
+                  <span className="source-index">{formatSourceLocator(source)}</span>
+                </li>
+              ))}
+            </ol>
+          </li>
+        ))}
+      </ol>
+    </div>
+  )
 }
 
 export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry }: ChatTranscriptProps) {
@@ -25,23 +55,12 @@ export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry 
               {turn.status === 'pending' && <p className="message-text waiting-message">Đang suy nghĩ…</p>}
               {turn.status === 'complete' && (
                 <>
-                  <p className="message-text">{turn.response.answer}</p>
-                  {turn.response.sources.length > 0 && (
-                    <div className="answer-sources">
-                      <h2>Nguồn tham chiếu</h2>
-                      <ol className="source-list">
-                        {turn.response.sources.map((source, index) => (
-                          <li className="source-card" key={`${source.chunk_id}-${index}`}>
-                            <span className="citation-number" aria-label={`Trích dẫn ${source.citation}`}>[{source.citation}]</span>
-                            <div>
-                              <span className="source-filename">{source.filename}</span>
-                              <span className="source-index">{formatSourceLocator(source)}</span>
-                            </div>
-                          </li>
-                        ))}
-                      </ol>
-                    </div>
-                  )}
+                  <div className="message-text answer-content">
+                    <Suspense fallback={<p>{turn.response.answer}</p>}>
+                      <AnswerMarkdown answer={turn.response.answer} />
+                    </Suspense>
+                  </div>
+                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} />
                 </>
               )}
               {turn.status === 'error' && (

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { Conversation } from './types'
 import { formatSourceLocator } from './sourceLocator'
+import { groupCitedSources } from './citedSources'
 
 type ShareConversationModalProps = {
   isOpen: boolean
@@ -14,9 +15,10 @@ function createPlainTextTranscript(conversation: Conversation) {
 
     if (turn.status === 'complete') {
       lines.push(`Trợ lý:\n${turn.response.answer}`)
-      if (turn.response.sources.length > 0) {
-        const sources = turn.response.sources.map((source) => (
-          `[${source.citation}] ${source.filename} — ${formatSourceLocator(source)}`
+      const groups = groupCitedSources(turn.response.answer, turn.response.sources)
+      if (groups.length > 0) {
+        const sources = groups.map((group) => (
+          `${group.filename}\n${group.sources.map((source) => `  [${source.citation}] ${formatSourceLocator(source)}`).join('\n')}`
         ))
         lines.push(`Nguồn tham chiếu:\n${sources.join('\n')}`)
       }
