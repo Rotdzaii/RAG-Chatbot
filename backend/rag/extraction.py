@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from html.parser import HTMLParser
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
@@ -17,6 +18,43 @@ class PageSpan:
 class ExtractedContent:
     text: str
     page_spans: tuple[PageSpan, ...] = ()
+
+
+class _HTMLTextParser(HTMLParser):
+    _ignored = frozenset(
+        {"head", "script", "style", "noscript", "svg", "nav", "footer", "form"}
+    )
+    _blocks = frozenset(
+        {"p", "div", "section", "article", "br", "li", "h1", "h2", "h3", "h4", "tr"}
+    )
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self._ignored_depth = 0
+        self._parts: list[str] = []
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        if tag in self._ignored:
+            self._ignored_depth += 1
+        elif not self._ignored_depth and tag in self._blocks:
+            self._parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        if tag in self._ignored and self._ignored_depth:
+            self._ignored_depth -= 1
+        elif not self._ignored_depth and tag in self._blocks:
+            self._parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if not self._ignored_depth:
+            self._parts.append(data)
+
+    def text(self) -> str:
+        return "\n".join(
+            line
+            for raw_line in "".join(self._parts).splitlines()
+            if (line := " ".join(raw_line.split()))
+        )
 
 
 def _extract_pdf_content(content: bytes) -> ExtractedContent:
@@ -70,6 +108,14 @@ def extract_content(content: bytes, mime_type: str) -> ExtractedContent:
             extracted = ExtractedContent(content.decode("utf-8-sig").strip())
         except UnicodeDecodeError as error:
             raise ValueError("Invalid UTF-8 text") from error
+    elif mime_type == "text/html":
+        try:
+            html = content.decode("utf-8-sig")
+        except UnicodeDecodeError as error:
+            raise ValueError("Invalid UTF-8 text") from error
+        parser = _HTMLTextParser()
+        parser.feed(html)
+        extracted = ExtractedContent(parser.text())
     else:
         raise ValueError(f"Unsupported MIME type: {mime_type}")
 
