@@ -123,6 +123,34 @@ class AnswerQuestionTests(unittest.TestCase):
         self.assertEqual(result.query_processing_action, "search")
         self.assertFalse(result.history_used)
         self.assertEqual(result.query_processing_elapsed_ms, 4.5)
+        self.assertEqual(result.cited_source_indices, (1, 2, 3))
+
+    def test_preserves_retrieved_candidates_but_marks_only_cited_sources(self) -> None:
+        session = Mock()
+        documents = [source_document("a.pdf", 0, "A"), source_document("b.pdf", 1, "B")]
+        pipeline = Mock()
+        pipeline.invoke.return_value = {"answer": "Ý chính [2].", "documents": documents}
+        with (
+            patch("rag.qa.process_query", return_value=search_result("Question")),
+            patch("rag.qa.build_rag_pipeline", return_value=pipeline),
+        ):
+            result = answer_question(session, "Question")
+
+        self.assertEqual(len(result.sources), 2)
+        self.assertEqual(result.cited_source_indices, (2,))
+
+    def test_rejects_out_of_range_generation_citation(self) -> None:
+        session = Mock()
+        pipeline = Mock()
+        pipeline.invoke.return_value = {
+            "answer": "Thông tin [9].", "documents": [source_document("a.pdf", 0, "A")]
+        }
+        with (
+            patch("rag.qa.process_query", return_value=search_result("Question")),
+            patch("rag.qa.build_rag_pipeline", return_value=pipeline),
+        ):
+            with self.assertRaisesRegex(ValueError, "invalid citation"):
+                answer_question(session, "Question")
 
     def test_returns_empty_sources_from_no_context_result(self) -> None:
         session = Mock()
@@ -174,7 +202,7 @@ class AnswerQuestionTests(unittest.TestCase):
             HistoryMessage(role="assistant", content="Một câu trả lời cũ."),
         ]
         pipeline = Mock()
-        pipeline.invoke.return_value = {"answer": "3,5 năm [1]", "documents": []}
+        pipeline.invoke.return_value = {"answer": "Không có ngữ cảnh phù hợp.", "documents": []}
 
         with (
             patch(

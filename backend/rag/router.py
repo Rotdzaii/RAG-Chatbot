@@ -104,6 +104,10 @@ def answer_question_request(
                 cosine_distance=chunk.cosine_distance,
             )
             for citation, chunk in enumerate(result.sources, start=1)
+            if (
+                result.cited_source_indices is None
+                or citation in result.cited_source_indices
+            )
         ]
 
         user_message_time = datetime.now(timezone.utc)
