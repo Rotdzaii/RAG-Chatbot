@@ -9,6 +9,9 @@ from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document
 
 
+MAX_URL_CHUNKS = 50
+
+
 def _chunk_page_range(
     chunk: TextChunk, page_spans: tuple[PageSpan, ...]
 ) -> tuple[int | None, int | None]:
@@ -40,13 +43,20 @@ def _build_chunk(
 
 
 def ingest_document(
-    session: Session, filename: str, mime_type: str, content: bytes
+    session: Session,
+    filename: str,
+    mime_type: str,
+    content: bytes,
+    *,
+    source_url: str | None = None,
 ) -> Document:
     if not filename.strip():
         raise ValueError("Filename must not be blank")
 
     extracted = extract_content(content, mime_type)
     chunks = chunk_text_with_offsets(extracted.text)
+    if source_url is not None and len(chunks) > MAX_URL_CHUNKS:
+        raise ValueError("URL source exceeds 50 chunks")
     chunk_contents = [chunk.content for chunk in chunks]
     embeddings = embed_documents(chunk_contents)
     if len(chunks) != len(embeddings):
@@ -56,6 +66,8 @@ def ingest_document(
         filename=filename,
         mime_type=mime_type,
         content_hash=sha256(content).hexdigest(),
+        source_type="url" if source_url is not None else "file",
+        source_url=source_url,
         embedding_profile=current_embedding_profile(),
         chunking_profile=CHUNKING_PROFILE,
         chunks=[

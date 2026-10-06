@@ -56,6 +56,29 @@ def create_two_page_pdf(first_page: str, second_page: str) -> bytes:
 
 
 class ExtractTextTests(unittest.TestCase):
+    def test_html_extracts_body_text_without_scripts_or_navigation(self) -> None:
+        html = (
+            b"<html><head><style>ignored</style></head><body>"
+            b"<nav>Menu</nav><h1>Marketing</h1><p>Study <strong>at VLU</strong>.</p>"
+            b"<script>secret</script><footer>Contact</footer></body></html>"
+        )
+
+        text = extract_text(html, "text/html")
+
+        self.assertEqual(text, "Marketing\nStudy at VLU.")
+
+    def test_html_rejects_empty_or_invalid_utf8(self) -> None:
+        with self.assertRaisesRegex(ValueError, "No text could be extracted"):
+            extract_text(b"<script>only a script</script>", "text/html")
+        with self.assertRaisesRegex(ValueError, "Invalid UTF-8 text"):
+            extract_text(b"<p>\xff</p>", "text/html")
+
+    def test_html_preserves_headline_inside_page_header(self) -> None:
+        self.assertEqual(
+            extract_text(b"<header><h1>Software Engineering</h1></header>", "text/html"),
+            "Software Engineering",
+        )
+
     def test_decodes_vietnamese_text_with_bom(self) -> None:
         expected = "Xin chào Việt Nam"
         content = b"\xef\xbb\xbf" + expected.encode("utf-8")

@@ -14,6 +14,7 @@ sys.modules.setdefault("config", fake_config)
 from rag.chunking import TextChunk
 from rag.extraction import ExtractedContent
 from rag.ingestion import ingest_document
+from rag.ingestion import MAX_URL_CHUNKS
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 
 
@@ -192,6 +193,41 @@ class IngestDocumentTests(unittest.TestCase):
             document.content_hash,
             sha256(b"plain text without pages").hexdigest(),
         )
+
+    def test_url_html_uses_extracted_text_and_records_source(self) -> None:
+        session = Mock()
+        raw_html = b"<nav>Navigation</nav><h1>Marketing at VLU</h1>"
+        with patch("rag.ingestion.embed_documents", return_value=[[0.1, 0.2]]) as embed:
+            document = ingest_document(
+                session,
+                "marketing.html",
+                "text/html",
+                raw_html,
+                source_url="https://www.vlu.edu.vn/academics/marketing",
+            )
+
+        self.assertEqual(document.source_type, "url")
+        self.assertEqual(document.source_url, "https://www.vlu.edu.vn/academics/marketing")
+        self.assertEqual(document.mime_type, "text/html")
+        self.assertEqual(document.content_hash, sha256(raw_html).hexdigest())
+        self.assertEqual([chunk.content for chunk in document.chunks], ["Marketing at VLU"])
+        embed.assert_called_once_with(["Marketing at VLU"])
+
+    def test_url_chunk_limit_prevents_embedding_and_database_work(self) -> None:
+        session = Mock()
+        content = b"a " * (MAX_URL_CHUNKS * 500)
+        with patch("rag.ingestion.embed_documents") as embed:
+            with self.assertRaisesRegex(ValueError, "exceeds 50 chunks"):
+                ingest_document(
+                    session,
+                    "long.txt",
+                    "text/plain",
+                    content,
+                    source_url="https://www.vlu.edu.vn/long",
+                )
+        embed.assert_not_called()
+        session.add.assert_not_called()
+        session.commit.assert_not_called()
 
     def test_rejects_blank_filename_without_mutating_session(self) -> None:
         session = Mock()

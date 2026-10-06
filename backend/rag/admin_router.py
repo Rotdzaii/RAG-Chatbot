@@ -2,13 +2,25 @@ from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, ConfigDict
-from sqlalchemy.exc import SQLAlchemyError
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from langchain_google_genai._common import GoogleGenerativeAIError
+from pydantic import BaseModel, ConfigDict, Field
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from auth import require_admin
 from database import SessionLocal
+from rag.ingestion import ingest_document
 from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
+from rag.models import Document
+from rag.url_sources import (
+    SourceFetchError,
+    SourceTooLarge,
+    SourceURLValidationError,
+    UnsupportedSourceType,
+    fetch_source,
+    normalize_source_url,
+)
 
 
 router = APIRouter(
@@ -43,6 +55,68 @@ class KnowledgeSourceResponse(BaseModel):
     total: int
     limit: int
     offset: int
+
+
+class URLSourceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    url: str = Field(min_length=1, max_length=2048)
+
+
+@router.post("/knowledge-sources/url", status_code=status.HTTP_201_CREATED)
+def upload_url_source(request: URLSourceRequest) -> dict[str, str | int]:
+    try:
+        normalized = normalize_source_url(request.url)
+    except SourceURLValidationError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    # Avoid spending embedding quota on a URL already in the database. The
+    # unique source_url constraint still handles concurrent uploads.
+    session = SessionLocal()
+    try:
+        existing = session.scalar(
+            select(Document.id).where(Document.source_url == normalized)
+        )
+        if existing is not None:
+            raise HTTPException(status_code=409, detail="Source URL already exists")
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Database unavailable") from error
+    finally:
+        session.close()
+
+    try:
+        fetched = fetch_source(normalized)
+    except UnsupportedSourceType as error:
+        raise HTTPException(status_code=415, detail=str(error)) from error
+    except SourceTooLarge as error:
+        raise HTTPException(status_code=413, detail=str(error)) from error
+    except SourceFetchError as error:
+        raise HTTPException(status_code=502, detail=str(error)) from error
+
+    session = SessionLocal()
+    try:
+        document = ingest_document(
+            session,
+            fetched.filename,
+            fetched.mime_type,
+            fetched.content,
+            source_url=fetched.url,
+        )
+        return {
+            "document_id": str(document.id),
+            "filename": document.filename,
+            "chunk_count": len(document.chunks),
+        }
+    except IntegrityError as error:
+        raise HTTPException(status_code=409, detail="Source URL already exists") from error
+    except ValueError as error:
+        raise HTTPException(status_code=422, detail=str(error)) from error
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Database unavailable") from error
+    except (GoogleGenerativeAIError, RuntimeError) as error:
+        raise HTTPException(status_code=503, detail="Ingestion is unavailable") from error
+    finally:
+        session.close()
 
 
 @router.get("/knowledge-sources", response_model=KnowledgeSourceResponse)

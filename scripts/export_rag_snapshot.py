@@ -43,11 +43,13 @@ def current_pipeline_config() -> dict[str, object]:
         CHUNKING_PROFILE,
         current_embedding_profile,
     )
+    from rag.ingestion import MAX_URL_CHUNKS
     from rag.langchain_pipeline import MODEL as generation_model
     from rag.langchain_pipeline import SYSTEM_INSTRUCTION
     from rag.qa import answer_question
     from rag.query_contract import query_processing_config
     from rag.retrieval import MAX_COSINE_DISTANCE
+    from rag.url_sources import ALLOWED_HOSTS, MAX_URL_BYTES
 
     chunk_signature = inspect.signature(chunk_text)
     answer_signature = inspect.signature(answer_question)
@@ -57,6 +59,7 @@ def current_pipeline_config() -> dict[str, object]:
             "pdf_mode": "page",
             "extract_images": False,
             "txt_encoding": "utf-8-sig",
+            "html_parser": "HTMLParser:skip-head-script-style-nav-footer-form-v1",
             "langchain_community_version": version("langchain-community"),
             "pypdf_version": version("pypdf"),
             "configured_from": "backend/rag/extraction.py",
@@ -67,6 +70,13 @@ def current_pipeline_config() -> dict[str, object]:
             "overlap": chunk_signature.parameters["overlap"].default,
             "new_document_profile": CHUNKING_PROFILE,
             "configured_from": "backend/rag/chunking.py",
+        },
+        "url_source": {
+            "scheme": "https",
+            "allowed_hosts": sorted(ALLOWED_HOSTS),
+            "max_bytes": MAX_URL_BYTES,
+            "max_chunks": MAX_URL_CHUNKS,
+            "follow_redirects": False,
         },
         "embedding": {
             "configured": {
