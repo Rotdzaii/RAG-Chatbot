@@ -16,12 +16,21 @@ minh model/version thực tế.
 | `software_engineering_vlu_web_2026-10-06.pdf` | 13 | Có | Duyệt nguồn/ngày hiệu lực và evidence. |
 | `marketing_overview.txt` | 1 | `null` | Bản demo; quyết định giữ trong corpus nghiệm thu hay loại khỏi corpus chốt. |
 | `finance_overview.txt` | 1 | `null` | Bản demo; quyết định giữ hay loại. |
-| `industrial_design_overview.txt` | 2 | `null` | Chunk 0 vẫn chứa câu thử **“Hôm nay trời mưa”**; cần xử lý trước nghiệm thu chính thức. |
+| `industrial_design_overview.txt` | 2 | `null` | Chunk 0 chứa câu **“Hôm nay trời mưa”** mà người dùng chủ động thêm để thử chatbot; cần gỡ hoặc khôi phục nguồn trước nghiệm thu chính thức. |
 
 Không tự xóa nguồn hoặc sửa DB từ báo cáo này. Khi corpus thay đổi, export lại
 snapshot và **mọi manifest** phải được đối chiếu với fingerprint mới. Nếu chỉ
 thay đổi metadata/config mà nội dung evidence giữ nguyên, validator vẫn đòi
 fingerprint đúng; reviewer phải xác nhận lại trước khi chuyển sang `approved`.
+
+Câu thử trên đã được lưu thành chunk và có embedding. Vì vậy hỏi về chính câu
+đó **không đo được tình huống không có evidence trong DB**. File TXT gốc trong
+repo không chứa câu thử. Nếu chỉ cần corpus PDF cho pilot, xóa bản demo
+Industrial Design qua admin API sẽ không tốn embedding; nếu muốn giữ ngành
+demo này, thay bằng TXT gốc và re-index sẽ tốn một lượt embedding. Để kiểm tra
+thiếu căn cứ trong phạm vi học vụ, dùng case MKT-P0-009; để kiểm tra ngoài phạm
+vi, dùng MKT-P0-010. Riêng phát biểu “Hôm nay trời mưa” còn là câu trần thuật,
+nên cần rubric hỏi lại/chuyển hướng nếu muốn dùng làm case hội thoại.
 
 ## Tình trạng manifest hiện tại
 
