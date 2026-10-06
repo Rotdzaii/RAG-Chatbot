@@ -11,11 +11,28 @@ fake_config.settings = SimpleNamespace(
 )
 sys.modules.setdefault("config", fake_config)
 
-from rag.retrieval import MAX_COSINE_DISTANCE, RetrievedChunk, retrieve_chunks
+from rag.retrieval import MAX_COSINE_DISTANCE, RetrievedChunk, retrieve_candidates, retrieve_chunks
 from rag.index_provenance import BASELINE_EMBEDDING_PROFILE
 
 
 class RetrieveChunksTests(unittest.TestCase):
+    def test_candidate_probe_embeds_once_and_keeps_distant_results(self) -> None:
+        session = Mock()
+        session.execute.return_value.mappings.return_value = [
+            {"chunk_id": uuid4(), "document_id": uuid4(), "filename": "notes.txt",
+             "chunk_index": 0, "page_start": None, "page_end": None,
+             "content": "distant", "cosine_distance": 0.39}
+        ]
+        with patch("rag.retrieval.embed_query", return_value=[0.1] * 768) as embed:
+            results = retrieve_candidates(session, "question", top_k=20)
+        embed.assert_called_once_with("question")
+        self.assertEqual(results[0].cosine_distance, 0.39)
+        statement = session.execute.call_args.args[0]
+        compiled = statement.compile()
+        self.assertNotIn(" <= ", str(compiled))
+        self.assertIn("documents.embedding_profile", str(compiled))
+        self.assertEqual(statement._limit_clause.value, 20)
+
     def test_embeds_once_and_returns_typed_results(self) -> None:
         session = Mock()
         chunk_id = uuid4()
