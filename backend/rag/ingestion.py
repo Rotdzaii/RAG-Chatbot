@@ -42,6 +42,19 @@ def _build_chunk(
     )
 
 
+def _prepare_chunks(
+    content: bytes, mime_type: str, *, is_url: bool
+) -> tuple[list[TextChunk], tuple[PageSpan, ...], list[list[float]]]:
+    extracted = extract_content(content, mime_type)
+    chunks = chunk_text_with_offsets(extracted.text)
+    if is_url and len(chunks) > MAX_URL_CHUNKS:
+        raise ValueError("URL source exceeds 50 chunks")
+    embeddings = embed_documents([chunk.content for chunk in chunks])
+    if len(embeddings) != len(chunks):
+        raise ValueError("Chunk and embedding counts must match")
+    return chunks, extracted.page_spans, embeddings
+
+
 def ingest_document(
     session: Session,
     filename: str,
@@ -53,14 +66,9 @@ def ingest_document(
     if not filename.strip():
         raise ValueError("Filename must not be blank")
 
-    extracted = extract_content(content, mime_type)
-    chunks = chunk_text_with_offsets(extracted.text)
-    if source_url is not None and len(chunks) > MAX_URL_CHUNKS:
-        raise ValueError("URL source exceeds 50 chunks")
-    chunk_contents = [chunk.content for chunk in chunks]
-    embeddings = embed_documents(chunk_contents)
-    if len(chunks) != len(embeddings):
-        raise ValueError("Chunk and embedding counts must match")
+    chunks, page_spans, embeddings = _prepare_chunks(
+        content, mime_type, is_url=source_url is not None
+    )
 
     document = Document(
         filename=filename,
@@ -75,7 +83,7 @@ def ingest_document(
                 index,
                 chunk,
                 embedding,
-                extracted.page_spans,
+                page_spans,
             )
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings))
         ],
