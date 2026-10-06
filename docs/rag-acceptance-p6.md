@@ -47,9 +47,23 @@ nguồn thử theo quy trình admin; không tự xóa một ID khác.
 
 ## Cổng 3: tích hợp và chất lượng
 
+HTTP contract offline có thể kiểm tra trước khi gọi dịch vụ thật:
+
+```powershell
+uv run --locked python -m unittest discover -s tests -p "test_p6_http_contract.py"
+uv run --locked python -m unittest discover -s tests -p "test_cors.py"
+```
+
+Các test này gửi request qua FastAPI: PDF hai trang đi qua extraction/chunking
+để kiểm tra page range, hash và profile; URL HTML đi qua extraction/chunking
+để kiểm tra nguồn và nội dung; embedding, DB và fetch mạng được thay bằng mock.
+Preflight CORS cho `PUT /admin/knowledge-sources/{id}/file` được chấp nhận.
+Upload PDF gặp lỗi provider trả HTTP 503 chung, không lộ nội dung lỗi.
+Chúng **không** xác minh token Supabase, DB, URL fetch hay embedding thật.
+
 | Hạng mục | Bằng chứng cần ghi | Trạng thái trước live |
 | --- | --- | --- |
-| PDF và URL đại diện | Upload/refresh qua admin API, page locator, hash/profile/vector và HTTP error mapping | Chờ kiểm chứng staging. |
+| PDF và URL đại diện | Upload/refresh qua admin API, page locator, hash/profile/vector và HTTP error mapping | HTTP contract PDF/HTML qua mock đạt; chờ refresh và staging. |
 | Auth và ownership | Admin mutation bị từ chối cho user thường; user A không đọc được hội thoại B | Unit tests hiện có; chờ smoke HTTP. |
 | Retrieval | Baseline và candidate P3 trên **cùng** snapshot/case approved; Recall@k, MRR, evidence-hit, latency | Chờ corpus/case cuối. |
 | Multi-turn | Standalone, follow-up, clarify, no-evidence; lỗi provider ghi đúng stage | Case 06–08 từng qua live gate; chờ regression sau freeze. |
