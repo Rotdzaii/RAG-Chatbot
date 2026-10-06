@@ -211,5 +211,7 @@ def upload_document(
         raise HTTPException(status_code=400, detail=str(error)) from error
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Database unavailable") from error
+    except (GoogleGenerativeAIError, RuntimeError) as error:
+        raise HTTPException(status_code=503, detail="Ingestion is unavailable") from error
     finally:
         session.close()

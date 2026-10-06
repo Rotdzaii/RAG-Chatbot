@@ -33,7 +33,7 @@ class CorsTests(unittest.TestCase):
         self.assertEqual(response.headers["access-control-allow-origin"], origin)
         self.assertEqual(
             response.headers["access-control-allow-methods"],
-            "GET, POST, PATCH, DELETE",
+            "GET, POST, PUT, PATCH, DELETE",
         )
         self.assertIn(
             "content-type", response.headers["access-control-allow-headers"].lower()
@@ -42,6 +42,21 @@ class CorsTests(unittest.TestCase):
             "authorization", response.headers["access-control-allow-headers"].lower()
         )
         self.assertNotIn("access-control-allow-credentials", response.headers)
+
+    def test_allows_file_replacement_preflight_from_vite(self) -> None:
+        origin = "http://127.0.0.1:5173"
+        response = self.client.options(
+            "/admin/knowledge-sources/00000000-0000-0000-0000-000000000001/file",
+            headers={
+                "Origin": origin,
+                "Access-Control-Request-Method": "PUT",
+                "Access-Control-Request-Headers": "Authorization, Content-Type",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.headers["access-control-allow-origin"], origin)
+        self.assertIn("PUT", response.headers["access-control-allow-methods"])
 
     def test_does_not_allow_unknown_origin(self) -> None:
         response = self.client.options(
