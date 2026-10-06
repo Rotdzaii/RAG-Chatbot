@@ -158,6 +158,44 @@ class QuestionAnswerApiTests(unittest.TestCase):
         answer_question.assert_called_once_with(session, "Question", top_k=5)
         session.close.assert_called_once_with()
 
+    def test_returns_and_persists_only_cited_source_with_original_number(self) -> None:
+        session = Mock()
+        candidates = [retrieved_chunk(index) for index in (0, 1, 2)]
+        result = QuestionAnswer(
+            answer="Thông tin [2].",
+            sources=candidates,
+            cited_source_indices=(2,),
+        )
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.answer_question", return_value=result),
+        ):
+            response = self.client.post("/questions", json={"question": "Thông tin?"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()["sources"]), 1)
+        self.assertEqual(response.json()["sources"][0]["citation"], 2)
+        self.assertEqual(response.json()["sources"][0]["chunk_id"], str(candidates[1].chunk_id))
+        messages = session.add_all.call_args.args[0]
+        self.assertEqual(messages[1].citations, response.json()["sources"])
+
+    def test_uncited_answer_does_not_return_candidate_sources(self) -> None:
+        session = Mock()
+        result = QuestionAnswer(
+            answer="Không đủ căn cứ để trả lời.",
+            sources=[retrieved_chunk(0)],
+            cited_source_indices=(),
+        )
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.answer_question", return_value=result),
+        ):
+            response = self.client.post("/questions", json={"question": "Câu hỏi?"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["sources"], [])
+        self.assertEqual(session.add_all.call_args.args[0][1].citations, [])
+
     def test_rejects_blank_question_and_invalid_top_k_before_session_creation(self) -> None:
         with patch("rag.router.SessionLocal") as session_local:
             blank_response = self.client.post("/questions", json={"question": " \n"})

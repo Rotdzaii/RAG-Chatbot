@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { QuestionSource } from '../api'
 import type { Conversation } from './types'
+import { groupCitedSources } from './citedSources'
 
 type ReferenceSourcesPanelProps = {
   conversation: Conversation
@@ -45,10 +46,12 @@ function collectWebsiteReferences(conversation: Conversation): WebsiteReference[
   for (const turn of conversation.turns) {
     if (turn.status !== 'complete') continue
 
-    for (const source of turn.response.sources) {
-      const reference = toWebsiteReference(source)
-      if (reference && !references.has(reference.url)) {
-        references.set(reference.url, reference)
+    for (const group of groupCitedSources(turn.response.answer, turn.response.sources)) {
+      for (const source of group.sources) {
+        const reference = toWebsiteReference(source)
+        if (reference && !references.has(reference.url)) {
+          references.set(reference.url, reference)
+        }
       }
     }
   }

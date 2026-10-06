@@ -4,6 +4,7 @@ from uuid import UUID
 
 from sqlalchemy.orm import Session
 
+from rag.citations import cited_source_indices
 from rag.langchain_pipeline import build_rag_pipeline
 from rag.query_contract import HistoryMessage
 from rag.query_processing import process_query
@@ -19,6 +20,9 @@ class QuestionAnswer:
     query_processing_action: Literal["search", "clarify"] = "search"
     query_processing_elapsed_ms: float = 0.0
     rewritten_query: str | None = None
+    # None keeps compatibility with callers constructing QuestionAnswer directly.
+    # Production answers set this to the references actually present in the text.
+    cited_source_indices: tuple[int, ...] | None = None
 
 
 def answer_question(
@@ -41,6 +45,7 @@ def answer_question(
             query_processing_action="clarify",
             query_processing_elapsed_ms=query_result.elapsed_ms,
             rewritten_query=None,
+            cited_source_indices=(),
         )
 
     if query_result.standalone_query is None:
@@ -83,4 +88,5 @@ def answer_question(
         query_processing_action="search",
         query_processing_elapsed_ms=query_result.elapsed_ms,
         rewritten_query=query_result.standalone_query,
+        cited_source_indices=cited_source_indices(result["answer"], len(sources)),
     )

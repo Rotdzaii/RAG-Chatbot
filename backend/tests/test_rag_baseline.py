@@ -140,6 +140,12 @@ class RagBaselineTests(unittest.TestCase):
         self.assertEqual(result["cited_indices"], [1, 3])
         self.assertEqual(result["invalid_indices"], [3])
 
+    def test_grouped_citations_match_frontend_syntax(self) -> None:
+        result = validate_citation_indices("Nguồn [2, 1; 2], [3](https://example.test)", 2)
+
+        self.assertTrue(result["valid"])
+        self.assertEqual(result["cited_indices"], [2, 1])
+
     def test_case_error_is_recorded_without_leaking_exception_message(self) -> None:
         manifest, snapshot = approved_manifest()
         times = iter((1.0, 1.125))

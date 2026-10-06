@@ -21,7 +21,7 @@ from rag_snapshot import payload_fingerprint
 
 RUN_SCHEMA_VERSION = "1.0"
 HUMAN_REVIEW_PENDING = "pending_human_review"
-_CITATION_PATTERN = re.compile(r"\[(\d+)\]")
+_CITATION_PATTERN = re.compile(r"\[(\d+(?:\s*[,;]\s*\d+)*)\](?!\()")
 
 
 class SourceLike(Protocol):
@@ -223,7 +223,11 @@ def aggregate_retrieval_metrics(
 
 
 def validate_citation_indices(answer: str, source_count: int) -> dict[str, object]:
-    indices = [int(value) for value in _CITATION_PATTERN.findall(answer)]
+    indices = [
+        int(number)
+        for group in _CITATION_PATTERN.findall(answer)
+        for number in re.split(r"\s*[,;]\s*", group)
+    ]
     cited_indices = _deduplicate(indices)
     invalid = [index for index in cited_indices if index < 1 or index > source_count]
     return {
