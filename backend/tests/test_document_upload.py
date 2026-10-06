@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from fastapi import UploadFile
 from fastapi.testclient import TestClient
+from langchain_google_genai._common import GoogleGenerativeAIError
 from starlette.datastructures import Headers
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -159,6 +160,25 @@ class DocumentUploadTests(unittest.TestCase):
 
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json(), {"detail": "Database unavailable"})
+        session.close.assert_called_once_with()
+
+    def test_maps_embedding_provider_error_to_generic_service_unavailable(self) -> None:
+        session = Mock()
+        with (
+            patch("rag.router.SessionLocal", return_value=session),
+            patch(
+                "rag.router.ingest_document",
+                side_effect=GoogleGenerativeAIError("private provider response"),
+            ),
+        ):
+            response = self.client.post(
+                "/documents",
+                files={"file": ("guide.pdf", b"%PDF-1.4", "application/pdf")},
+            )
+
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "Ingestion is unavailable"})
+        self.assertNotIn("private provider response", response.text)
         session.close.assert_called_once_with()
 
 
