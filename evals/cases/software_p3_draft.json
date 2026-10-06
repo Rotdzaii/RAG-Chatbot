@@ -1,0 +1,397 @@
+{
+  "schema_version": "1.0",
+  "phase": "P0.2",
+  "name": "Kỹ thuật phần mềm P3 — bản nháp chờ duyệt",
+  "snapshot": {
+    "path": "data/rag_snapshots/software_p2_20261006.json",
+    "fingerprint_algorithm": "sha256",
+    "fingerprint": "a63d20c231e4950683bd109a97101d018510c2fe3577a0d5c5836a5010a59aec"
+  },
+  "review_policy": {
+    "score_only_review_status": "approved",
+    "pending_answerability": "unknown",
+    "history_is_fixture_not_gold": true,
+    "required_facts_are_draft_until_approved": true
+  },
+  "corpus_notes": [
+    {
+      "id": "SWE-NOTE-001",
+      "note": "FAQ chỉ có nhãn câu hỏi về AI gây mất việc, không có phần trả lời tương ứng. Không coi nhãn này là bằng chứng để trả lời.",
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "06efa6f0-ef9b-4670-82a9-76fed5456778",
+          "quote": "Học Kỹ thuật phần mềm có sợ mất việc khi AI phát triển không? +"
+        }
+      ]
+    },
+    {
+      "id": "SWE-NOTE-002",
+      "note": "PDF có khoảng học phí tham khảo, không có thông tin học phí chính xác cho 2027.",
+      "evidence": [
+        {
+          "kind": "context_only",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "afa45e92-91db-4ea3-b877-376f2c6ba723",
+          "quote": "Học phí toàn khóa\n200 - 250 triệu đồng\n≈ 28 - 35 triệu đồng / học kỳ\n"
+        }
+      ]
+    }
+  ],
+  "cases": [
+    {
+      "id": "SWE-P3-001",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Ngành Kỹ thuật phần mềm tại Văn Lang học trong bao lâu?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "046b51e0-cc41-4154-a68d-897f55cfcf42",
+          "quote": "Thời gian đào\ntạo\n4 năm\n"
+        }
+      ],
+      "expected_behavior": "Nêu thời gian chung 4 năm của ngành, có citation.",
+      "required_facts": [
+        "4 năm"
+      ],
+      "forbidden_claims": [
+        "Gán thời gian 3,5 năm của Marketing cho Kỹ thuật phần mềm."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-002",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Kỹ thuật phần mềm Văn Lang có những định hướng chuyên ngành nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "046b51e0-cc41-4154-a68d-897f55cfcf42",
+          "quote": "Định hướng chuyên ngành Thực tế ảo và Thực tế ảo tăng cường | Trí tuệ Nhân tạo (AI) | ERP (Phần\nmềm cho quản lý doanh nghiệp)\n"
+        }
+      ],
+      "expected_behavior": "Nêu đúng ba định hướng được liệt kê và viện dẫn tài liệu.",
+      "required_facts": [
+        "Thực tế ảo và Thực tế ảo tăng cường",
+        "Trí tuệ Nhân tạo (AI)",
+        "ERP"
+      ],
+      "forbidden_claims": [
+        "Gọi các chuyên ngành của Marketing là định hướng Kỹ thuật phần mềm."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-003",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Theo FAQ, sinh viên Kỹ thuật phần mềm ở Văn Lang học những nội dung gì?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "06efa6f0-ef9b-4670-82a9-76fed5456778",
+          "quote": "Sinh viên được học về lập trình, phân tích và thiết kế phần mềm, phát triển ứng dụng web và di động, cơ sở dữ liệu, kiểm\nthử phần mềm, trí tuệ nhân tạo và quản lý dự án phần mềm. \n"
+        }
+      ],
+      "expected_behavior": "Tóm tắt nội dung câu trả lời FAQ, có citation.",
+      "required_facts": [
+        "Lập trình",
+        "Phân tích và thiết kế phần mềm",
+        "Kiểm thử phần mềm"
+      ],
+      "forbidden_claims": [
+        "Tự suy ra số tín chỉ hoặc môn tiên quyết."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-004",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Năm nhất Kỹ thuật phần mềm có những môn tiêu biểu nào?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "e51129d0-61af-4757-9dc7-43a1cb4ee6c2",
+          "quote": "Môn học tiêu biểu\n• Nguyên lý lập trình\n• Nhập môn Kỹ thuật phần mềm\n• Kỹ thuật lập trình\n• Thiết kế website\n• Cơ sở dữ liệu\n"
+        }
+      ],
+      "expected_behavior": "Nêu các môn tiêu biểu ở phần Năm 1, không coi là danh sách đầy đủ.",
+      "required_facts": [
+        "Nguyên lý lập trình",
+        "Nhập môn Kỹ thuật phần mềm",
+        "Kỹ thuật lập trình",
+        "Thiết kế website",
+        "Cơ sở dữ liệu"
+      ],
+      "forbidden_claims": [
+        "Khẳng định đây là toàn bộ các môn năm nhất."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-005",
+      "query_type": "paraphrase",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Ra trường ngành Kỹ thuật phần mềm có thể làm phát triển game không?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "1c92c762-6734-4190-9e2c-f3d585440485",
+          "quote": "Kỹ sư phát triển game\nThiết kế và lập trình các trò chơi điện tử\ntrên máy tính, điện thoại, console.\n"
+        }
+      ],
+      "expected_behavior": "Nêu vị trí Kỹ sư phát triển game là một hướng nghề nghiệp được nhắc đến.",
+      "required_facts": [
+        "Kỹ sư phát triển game"
+      ],
+      "forbidden_claims": [
+        "Đảm bảo có việc làm hoặc thu nhập cụ thể."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-006",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Marketing và Kỹ thuật phần mềm ở Văn Lang mỗi ngành đào tạo bao lâu?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "046b51e0-cc41-4154-a68d-897f55cfcf42",
+          "quote": "Thời gian đào\ntạo\n4 năm\n"
+        },
+        {
+          "kind": "supporting",
+          "document_id": "f2da40c4-f85a-4712-a590-c97b3ad062b6",
+          "chunk_id": "a07cea80-79b4-47c3-87c0-febdf7bb366c",
+          "quote": "Thời gian đào\ntạo\n3.5 năm\n"
+        }
+      ],
+      "expected_behavior": "Phân biệt thời gian hai ngành và viện dẫn đủ hai tài liệu.",
+      "required_facts": [
+        "Kỹ thuật phần mềm: 4 năm",
+        "Marketing: 3,5 năm"
+      ],
+      "forbidden_claims": [
+        "Đảo thời gian của hai ngành."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-007",
+      "query_type": "typo",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Kĩ thuật phần mền ở Văn Lang học mấy năm?",
+      "history": [],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "046b51e0-cc41-4154-a68d-897f55cfcf42",
+          "quote": "Thời gian đào\ntạo\n4 năm\n"
+        }
+      ],
+      "expected_behavior": "Hiểu lỗi gõ và trả lời thời gian 4 năm của Kỹ thuật phần mềm.",
+      "required_facts": [
+        "4 năm"
+      ],
+      "forbidden_claims": [
+        "Chọn ngành khác vì lỗi gõ."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-008",
+      "query_type": "follow_up",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Thế ngành đó học mấy năm?",
+      "history": [
+        {
+          "role": "user",
+          "content": "Ngành Kỹ thuật phần mềm ở Văn Lang học những gì?"
+        },
+        {
+          "role": "assistant",
+          "content": "Tài liệu nêu lập trình, phân tích và thiết kế phần mềm, kiểm thử và quản lý dự án phần mềm."
+        }
+      ],
+      "evidence": [
+        {
+          "kind": "supporting",
+          "document_id": "1fc41aa3-5ecf-43a0-bdc8-90545cea8ec5",
+          "chunk_id": "046b51e0-cc41-4154-a68d-897f55cfcf42",
+          "quote": "Thời gian đào\ntạo\n4 năm\n"
+        }
+      ],
+      "expected_behavior": "Dùng history để hiểu ngành đó là Kỹ thuật phần mềm, trả lời 4 năm.",
+      "required_facts": [
+        "4 năm"
+      ],
+      "forbidden_claims": [
+        "Bỏ qua history và chọn Marketing."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "pending_review",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      },
+      "metadata": {
+        "history_fixture": true,
+        "history_is_gold": false
+      },
+      "required_behaviors": [
+        "Dùng history để hiểu ngành đó là Kỹ thuật phần mềm, trả lời 4 năm."
+      ]
+    },
+    {
+      "id": "SWE-P3-009",
+      "query_type": "ambiguous",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Ngành này học mấy năm?",
+      "history": [],
+      "evidence": [],
+      "expected_behavior": "Hỏi rõ ngành nào thay vì tự chọn Marketing hoặc Kỹ thuật phần mềm.",
+      "required_facts": [],
+      "forbidden_claims": [
+        "Đoán ngành và nêu thời gian cụ thể."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    },
+    {
+      "id": "SWE-P3-010",
+      "query_type": "standalone",
+      "answerability": "unknown",
+      "review_status": "pending_review",
+      "reviewer": null,
+      "reviewed_at": null,
+      "review_rationale": "Bản nháp kỹ thuật: cần người duyệt evidence, answerability và rubric trước scoring.",
+      "question": "Học phí chính xác của Kỹ thuật phần mềm năm 2027 là bao nhiêu?",
+      "history": [],
+      "evidence": [],
+      "expected_behavior": "Nêu tài liệu không đủ căn cứ cho con số chính xác năm 2027.",
+      "required_facts": [],
+      "forbidden_claims": [
+        "Khẳng định khoảng học phí tham khảo hiện tại là con số chính xác cho năm 2027."
+      ],
+      "fail_if": [
+        "Không thực hiện hành vi mong đợi hoặc nêu nội dung không có evidence."
+      ],
+      "metric_applicability": {
+        "retrieval": "not_applicable",
+        "answer_quality": "pending_review",
+        "query_rewriting": "not_applicable"
+      }
+    }
+  ]
+}
