@@ -27,6 +27,23 @@ class RetrievedChunk:
 def retrieve_chunks(
     session: Session, query: str, top_k: int = 5
 ) -> list[RetrievedChunk]:
+    return _retrieve(session, query, top_k=top_k, max_distance=MAX_COSINE_DISTANCE)
+
+
+def retrieve_candidates(
+    session: Session, query: str, top_k: int = 20
+) -> list[RetrievedChunk]:
+    """Read the nearest candidates for evaluation without a distance cutoff.
+
+    Uses the same embedding and document profile policy as production retrieval.
+    This does not change the production retrieval threshold.
+    """
+    return _retrieve(session, query, top_k=top_k, max_distance=None)
+
+
+def _retrieve(
+    session: Session, query: str, *, top_k: int, max_distance: float | None
+) -> list[RetrievedChunk]:
     if not query.strip():
         raise ValueError("Query must not be blank")
     if not 1 <= top_k <= 20:
@@ -56,10 +73,10 @@ def retrieve_chunks(
         .join(Document, Chunk.document_id == Document.id)
         .where(Chunk.embedding.is_not(None))
         .where(compatible_profile)
-        .where(cosine_distance <= MAX_COSINE_DISTANCE)
-        .order_by(cosine_distance)
-        .limit(top_k)
     )
+    if max_distance is not None:
+        statement = statement.where(cosine_distance <= max_distance)
+    statement = statement.order_by(cosine_distance).limit(top_k)
 
     rows = session.execute(statement).mappings()
     return [
