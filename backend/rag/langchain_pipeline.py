@@ -42,7 +42,9 @@ def _get_chat_model() -> ChatGoogleGenerativeAI:
     if api_key is None or not api_key.get_secret_value():
         raise RuntimeError("GEMINI_API_KEY is required for generation")
 
-    return ChatGoogleGenerativeAI(model=MODEL, api_key=api_key)
+    return ChatGoogleGenerativeAI(
+        model=getattr(settings, "rag_generation_model", MODEL), api_key=api_key
+    )
 
 
 def _format_documents(documents: list[Document]) -> str:

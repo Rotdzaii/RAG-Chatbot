@@ -78,7 +78,9 @@ def _get_query_model() -> ChatGoogleGenerativeAI:
     api_key: SecretStr | None = settings.gemini_api_key
     if api_key is None or not api_key.get_secret_value():
         raise RuntimeError("GEMINI_API_KEY is required for query processing")
-    return ChatGoogleGenerativeAI(model=QUERY_PROCESSING_MODEL, api_key=api_key)
+    return ChatGoogleGenerativeAI(
+        model=getattr(settings, "rag_query_model", QUERY_PROCESSING_MODEL), api_key=api_key
+    )
 
 
 def _format_history(history: Sequence[HistoryMessage]) -> str:
