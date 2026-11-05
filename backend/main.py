@@ -8,6 +8,7 @@ from rag.admin_router import router as admin_router
 from rag.conversation_router import router as conversation_router
 from rag.router import router as documents_router
 from rag.progress_router import router as progress_router
+from rag.source_file_router import router as source_file_router
 
 
 app = FastAPI(title="RAG Chatbot API")
@@ -20,6 +21,7 @@ app.add_middleware(
 )
 app.include_router(documents_router)
 app.include_router(progress_router)
+app.include_router(source_file_router)
 app.include_router(conversation_router)
 app.include_router(admin_router)
 

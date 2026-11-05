@@ -72,6 +72,31 @@ class Document(Base):
         back_populates="document", cascade="all, delete-orphan"
     )
 
+    file_versions: Mapped[list[SourceFileVersion]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class SourceFileVersion(Base):
+    __tablename__ = "source_file_versions"
+
+    id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), primary_key=True, default=uuid4,
+        server_default=text("gen_random_uuid()"),
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False,
+    )
+    mime_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    byte_size: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False,
+    )
+
+    document: Mapped[Document] = relationship(back_populates="file_versions")
+
 
 class SourceChangeNotification(Base):
     __tablename__ = "source_change_notifications"
@@ -128,6 +153,10 @@ class Chunk(Base):
     )
     chunk_index: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    source_file_version_id: Mapped[UUID | None] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("source_file_versions.id", ondelete="SET NULL"), nullable=True,
+    )
     page_start: Mapped[int | None] = mapped_column(Integer, nullable=True)
     page_end: Mapped[int | None] = mapped_column(Integer, nullable=True)
     embedding: Mapped[list[float] | None] = mapped_column(VECTOR(768), nullable=True)
@@ -136,6 +165,7 @@ class Chunk(Base):
     )
 
     document: Mapped[Document] = relationship(back_populates="chunks")
+    source_file_version: Mapped[SourceFileVersion | None] = relationship()
 
 
 class Conversation(Base):

@@ -1,5 +1,7 @@
 from hashlib import sha256
+from pathlib import Path
 import sys
+import tempfile
 import unittest
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
@@ -19,6 +21,13 @@ from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 
 
 class IngestDocumentTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.storage = tempfile.TemporaryDirectory()
+        self.addCleanup(self.storage.cleanup)
+        storage_patch = patch("rag.source_files.source_file_directory", return_value=Path(self.storage.name))
+        storage_patch.start()
+        self.addCleanup(storage_patch.stop)
+
     def test_persists_document_with_ordered_chunks(self) -> None:
         session = Mock()
 
@@ -121,6 +130,7 @@ class IngestDocumentTests(unittest.TestCase):
         session.add.assert_called_once()
         session.commit.assert_called_once_with()
         session.rollback.assert_called_once_with()
+        self.assertEqual(list(Path(self.storage.name).iterdir()), [])
 
     def test_pdf_chunks_keep_page_ranges_across_a_page_boundary(self) -> None:
         session = Mock()
@@ -150,6 +160,12 @@ class IngestDocumentTests(unittest.TestCase):
             [(1, 2), (2, 2)],
         )
         self.assertEqual(document.content_hash, sha256(b"pdf bytes").hexdigest())
+        self.assertEqual(len(document.file_versions), 1)
+        self.assertEqual(document.chunks[0].source_file_version_id, document.file_versions[0].id)
+        self.assertEqual(
+            (Path(self.storage.name) / f"{document.file_versions[0].id.hex}.pdf").read_bytes(),
+            b"pdf bytes",
+        )
         session.add.assert_called_once_with(document)
         session.commit.assert_called_once_with()
 
@@ -193,6 +209,16 @@ class IngestDocumentTests(unittest.TestCase):
             document.content_hash,
             sha256(b"plain text without pages").hexdigest(),
         )
+        self.assertEqual(document.chunks[0].source_file_version_id, document.file_versions[0].id)
+
+    def test_uploaded_filename_never_becomes_storage_path(self) -> None:
+        session = Mock()
+        with patch("rag.ingestion.embed_documents", return_value=[[0.1, 0.2]]):
+            document = ingest_document(session, "../outside.txt", "text/plain", b"safe")
+        self.assertEqual(
+            [path.name for path in Path(self.storage.name).iterdir()],
+            [f"{document.file_versions[0].id.hex}.txt"],
+        )
 
     def test_url_html_uses_extracted_text_and_records_source(self) -> None:
         session = Mock()
@@ -210,6 +236,7 @@ class IngestDocumentTests(unittest.TestCase):
         self.assertEqual(document.source_url, "https://www.vlu.edu.vn/academics/marketing")
         self.assertEqual(document.mime_type, "text/html")
         self.assertEqual(document.content_hash, sha256(raw_html).hexdigest())
+        self.assertEqual(document.file_versions, [])
         self.assertEqual([chunk.content for chunk in document.chunks], ["Marketing at VLU"])
         embed.assert_called_once_with(["Marketing at VLU"])
 

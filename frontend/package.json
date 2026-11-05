@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:chat": "playwright test tests/chat-progress.spec.ts"
+    "test:chat": "playwright test tests/chat-progress.spec.ts",
+    "test:source-files": "playwright test tests/source-files.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

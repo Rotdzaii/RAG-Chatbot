@@ -98,6 +98,9 @@ class QuestionAnswerApiTests(unittest.TestCase):
                     "page_start": 3,
                     "page_end": 3,
                     "cosine_distance": 0.4,
+                    "mime_type": None,
+                    "source_url": None,
+                    "source_file_version_id": None,
                 },
                 {
                     "citation": 2,
@@ -108,6 +111,9 @@ class QuestionAnswerApiTests(unittest.TestCase):
                     "page_start": 8,
                     "page_end": 10,
                     "cosine_distance": 0.7,
+                    "mime_type": None,
+                    "source_url": None,
+                    "source_file_version_id": None,
                 },
                 {
                     "citation": 3,
@@ -118,6 +124,9 @@ class QuestionAnswerApiTests(unittest.TestCase):
                     "page_start": None,
                     "page_end": None,
                     "cosine_distance": 0.9,
+                    "mime_type": None,
+                    "source_url": None,
+                    "source_file_version_id": None,
                 },
             ],
         )

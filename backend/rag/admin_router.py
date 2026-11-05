@@ -224,7 +224,7 @@ def replace_file_source(
         )
         return _replacement_response(result)
     except (SourceNotFound, SourceTypeMismatch, SourceChanged, ValueError,
-            SQLAlchemyError, GoogleGenerativeAIError, RuntimeError) as error:
+            SQLAlchemyError, GoogleGenerativeAIError, RuntimeError, OSError) as error:
         raise _mutation_error(error) from error
     finally:
         session.close()

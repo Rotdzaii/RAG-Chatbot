@@ -22,6 +22,9 @@ class RetrievedChunk:
     cosine_distance: float
     page_start: int | None = None
     page_end: int | None = None
+    source_url: str | None = None
+    source_file_version_id: UUID | None = None
+    mime_type: str | None = None
 
 
 def retrieve_chunks(
@@ -64,6 +67,9 @@ def _retrieve(
             Chunk.id.label("chunk_id"),
             Chunk.document_id.label("document_id"),
             Document.filename.label("filename"),
+            Document.mime_type.label("mime_type"),
+            Document.source_url.label("source_url"),
+            Chunk.source_file_version_id.label("source_file_version_id"),
             Chunk.chunk_index.label("chunk_index"),
             Chunk.page_start.label("page_start"),
             Chunk.page_end.label("page_end"),
@@ -84,6 +90,9 @@ def _retrieve(
             chunk_id=row["chunk_id"],
             document_id=row["document_id"],
             filename=row["filename"],
+            mime_type=row.get("mime_type"),
+            source_url=row.get("source_url"),
+            source_file_version_id=row.get("source_file_version_id"),
             chunk_index=row["chunk_index"],
             page_start=row["page_start"],
             page_end=row["page_end"],

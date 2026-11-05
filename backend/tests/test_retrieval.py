@@ -37,11 +37,15 @@ class RetrieveChunksTests(unittest.TestCase):
         session = Mock()
         chunk_id = uuid4()
         document_id = uuid4()
+        version_id = uuid4()
         session.execute.return_value.mappings.return_value = [
             {
                 "chunk_id": chunk_id,
                 "document_id": document_id,
                 "filename": "notes.txt",
+                "mime_type": "text/plain",
+                "source_url": None,
+                "source_file_version_id": version_id,
                 "chunk_index": 2,
                 "page_start": 3,
                 "page_end": 5,
@@ -60,6 +64,8 @@ class RetrieveChunksTests(unittest.TestCase):
                     chunk_id=chunk_id,
                     document_id=document_id,
                     filename="notes.txt",
+                    mime_type="text/plain",
+                    source_file_version_id=version_id,
                     chunk_index=2,
                     page_start=3,
                     page_end=5,
@@ -76,6 +82,9 @@ class RetrieveChunksTests(unittest.TestCase):
         self.assertIn("JOIN documents", statement_sql)
         self.assertIn("chunks.page_start", statement_sql)
         self.assertIn("chunks.page_end", statement_sql)
+        self.assertIn("chunks.source_file_version_id", statement_sql)
+        self.assertIn("documents.source_url", statement_sql)
+        self.assertIn("documents.mime_type", statement_sql)
         self.assertIn("chunks.embedding IS NOT NULL", statement_sql)
         self.assertIn("documents.embedding_profile =", statement_sql)
         self.assertIn("documents.embedding_profile IS NULL", statement_sql)

@@ -12,6 +12,9 @@ export type QuestionSource = {
   chunk_id: string
   document_id: string
   filename: string
+  source_url?: string | null
+  source_file_version_id?: string | null
+  mime_type?: string | null
   chunk_index: number
   page_start?: number | null
   page_end?: number | null
@@ -220,6 +223,14 @@ export async function askQuestion(
 }
 
 export type QuestionStage = 'query' | 'retrieval' | 'generation' | 'validation'
+
+export async function getOriginalSourceFile(
+  accessToken: string | undefined,
+  versionId: string,
+): Promise<Blob> {
+  const response = await authorizedRequest(`/source-files/${encodeURIComponent(versionId)}`, accessToken)
+  return response.blob()
+}
 
 export async function askQuestionWithProgress(
   question: string, accessToken: string | undefined, requestId: string,

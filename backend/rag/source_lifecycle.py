@@ -5,15 +5,20 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
+import logging
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.ingestion import _build_chunk, _prepare_chunks
-from rag.models import Chunk, Document
+from rag.models import Chunk, Document, SourceFileVersion
+from rag.source_files import remove_version, store_version
+
+
+logger = logging.getLogger(__name__)
 
 
 class SourceNotFound(Exception):
@@ -69,6 +74,8 @@ def replace_source(
         raise ValueError("Invalid filename")
     digest = sha256(content).hexdigest()
     profile = current_embedding_profile()
+    stored_version: SourceFileVersion | None = None
+    stored = False
 
     try:
         document = session.scalar(select(Document).where(Document.id == source_id).with_for_update())
@@ -87,6 +94,27 @@ def replace_source(
         if _is_current(document, digest=digest, mime_type=mime_type, profile=profile):
             count = _chunk_count(session, source_id)
             if count:
+                version_added = False
+                if source_type == "file" and session.scalar(
+                    select(Chunk.id)
+                    .where(Chunk.document_id == source_id)
+                    .where(Chunk.source_file_version_id.is_(None))
+                    .limit(1)
+                ) is not None:
+                    # An unchanged legacy file can acquire its original bytes
+                    # without re-embedding or replacing its existing chunks.
+                    stored_version = SourceFileVersion(
+                        id=uuid4(), document_id=source_id, mime_type=mime_type,
+                        content_hash=digest, byte_size=len(content),
+                    )
+                    store_version(stored_version.id, mime_type, content)
+                    stored = True
+                    session.add(stored_version)
+                    session.execute(
+                        update(Chunk).where(Chunk.document_id == source_id)
+                        .values(source_file_version_id=stored_version.id)
+                    )
+                    version_added = True
                 filename_changed = document.filename != filename
                 if filename_changed:
                     document.filename = filename
@@ -97,7 +125,7 @@ def replace_source(
                     document_id=source_id,
                     filename=filename,
                     chunk_count=count,
-                    status="updated" if filename_changed else "unchanged",
+                    status="updated" if filename_changed or version_added else "unchanged",
                 )
                 session.commit()
                 return result
@@ -131,6 +159,15 @@ def replace_source(
         ) != initial_state:
             raise SourceChanged()
 
+        if source_type == "file":
+            stored_version = SourceFileVersion(
+                id=uuid4(), document_id=source_id, mime_type=mime_type,
+                content_hash=digest, byte_size=len(content),
+            )
+            store_version(stored_version.id, mime_type, content)
+            stored = True
+            session.add(stored_version)
+
         # The DELETE is executed before INSERTs in the *same* transaction so
         # the (document_id, chunk_index) uniqueness constraint cannot collide.
         session.execute(delete(Chunk).where(Chunk.document_id == source_id))
@@ -140,6 +177,9 @@ def replace_source(
         ]
         for chunk in new_chunks:
             chunk.document_id = source_id
+            if stored_version is not None:
+                chunk.source_file_version_id = stored_version.id
+                chunk.source_file_version = stored_version
         session.add_all(new_chunks)
         document.filename = filename
         document.mime_type = mime_type
@@ -153,6 +193,8 @@ def replace_source(
         return ReplacementResult(source_id, filename, len(new_chunks), "updated")
     except Exception:
         session.rollback()
+        if stored and stored_version is not None:
+            remove_version(stored_version.id, mime_type)
         raise
 
 
@@ -163,8 +205,14 @@ def delete_source(session: Session, source_id: UUID) -> bool:
         if document is None:
             session.rollback()
             return False
+        file_versions = [(version.id, version.mime_type) for version in document.file_versions]
         session.delete(document)
         session.commit()
+        for version_id, mime_type in file_versions:
+            try:
+                remove_version(version_id, mime_type)
+            except OSError:
+                logger.warning("Could not remove deleted source file version %s", version_id)
         return True
     except Exception:
         session.rollback()

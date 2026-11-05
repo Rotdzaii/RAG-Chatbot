@@ -619,6 +619,7 @@ function App() {
               conversation={activeConversation}
               isOpen={referencePanelOpen}
               onClose={closeReferencePanel}
+              accessToken={session?.access_token}
             />
           )}
         </div>
