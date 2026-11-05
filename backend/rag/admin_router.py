@@ -13,7 +13,7 @@ from database import SessionLocal
 from rag.ingestion import ingest_document
 from rag.ocr import OCRFailed, OCRUnavailable
 from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
-from rag.models import Document, SourceChangeNotification
+from rag.models import Document
 from rag.source_metadata import MetadataFilter, SourceMetadata, SourceMetadataPatch
 from rag.source_lifecycle import (
     SourceChanged,
@@ -291,77 +291,6 @@ def get_knowledge_source_detail(source_id: UUID) -> KnowledgeSourceItem:
         raise HTTPException(
             status_code=503, detail="Knowledge sources are unavailable"
         ) from error
-    finally:
-        session.close()
-
-
-class SourceChangeNotificationItem(BaseModel):
-    id: UUID
-    document_id: UUID
-    source_url: str
-    baseline_hash: str
-    observed_hash: str
-    detected_at: datetime
-    read_at: datetime | None
-
-
-def _notification_item(
-    notification: SourceChangeNotification, source_url: str
-) -> SourceChangeNotificationItem:
-    return SourceChangeNotificationItem(
-        id=notification.id, document_id=notification.document_id,
-        source_url=source_url, baseline_hash=notification.baseline_hash,
-        observed_hash=notification.observed_hash,
-        detected_at=notification.detected_at, read_at=notification.read_at,
-    )
-
-
-@router.get("/source-change-notifications", response_model=list[SourceChangeNotificationItem])
-def list_source_change_notifications(
-    unread_only: bool = Query(default=False),
-    limit: int = Query(default=100, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
-) -> list[SourceChangeNotificationItem]:
-    session = SessionLocal()
-    try:
-        query = (
-            select(SourceChangeNotification, Document.source_url)
-            .join(Document, SourceChangeNotification.document_id == Document.id)
-            .order_by(SourceChangeNotification.detected_at.desc(), SourceChangeNotification.id.desc())
-            .limit(limit).offset(offset)
-        )
-        if unread_only:
-            query = query.where(SourceChangeNotification.read_at.is_(None))
-        return [_notification_item(item, url) for item, url in session.execute(query).all()]
-    except SQLAlchemyError as error:
-        raise HTTPException(status_code=503, detail="Notifications are unavailable") from error
-    finally:
-        session.close()
-
-
-@router.post(
-    "/source-change-notifications/{notification_id}/read",
-    response_model=SourceChangeNotificationItem,
-)
-def mark_source_change_notification_read(notification_id: UUID) -> SourceChangeNotificationItem:
-    session = SessionLocal()
-    try:
-        notification = session.scalar(
-            select(SourceChangeNotification)
-            .where(SourceChangeNotification.id == notification_id).with_for_update()
-        )
-        if notification is None:
-            raise HTTPException(status_code=404, detail="Notification not found")
-        url = session.scalar(
-            select(Document.source_url).where(Document.id == notification.document_id)
-        )
-        if notification.read_at is None:
-            notification.read_at = datetime.now(timezone.utc)
-            session.commit()
-        return _notification_item(notification, url)
-    except SQLAlchemyError as error:
-        session.rollback()
-        raise HTTPException(status_code=503, detail="Notifications are unavailable") from error
     finally:
         session.close()
 

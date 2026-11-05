@@ -17,7 +17,7 @@
 .admin-button--primary:hover:not(:disabled) { background: #b91a2c; border-color: #b91a2c; }
 .admin-button--danger-text { border-color: transparent; background: transparent; color: #b7192b; }
 .admin-full-width { width: 100%; }
-.admin-source-list, .admin-notification-list { padding: 0; margin: 0; list-style: none; }
+.admin-source-list { padding: 0; margin: 0; list-style: none; }
 .admin-file-badge.admin-file-badge--url { color: #36558a; background: #f0f5ff; border-color: #cfdcf2; }
 .admin-source-info { flex: 1; min-width: 100px; }
 .admin-source-status { display: inline-flex; align-items: center; flex-shrink: 0; padding: 3px 8px; border: 1px solid; border-radius: 5px; font-size: 11px; font-weight: 600; line-height: 1.5; white-space: nowrap; }
@@ -48,14 +48,6 @@
 .admin-field-error { padding: 10px; border-radius: 5px; font-size: 13px; line-height: 1.6; }
 .admin-info-strip { border-left: 3px solid #667ba7; background: #eaf0fa; color: #3f527c; max-width: 85ch; }
 .admin-working { position: fixed; bottom: 18px; left: 50%; transform: translateX(-50%); z-index: 5; background: #1f2251; color: #fff; padding: 13px 20px; border-radius: 9px; box-shadow: 0 4px 20px #1f225125; font-size: 13px; width: max-content; max-width: calc(100% - 32px); }
-.admin-notification { display: flex; align-items: flex-start; gap: 16px; padding: 24px; border-bottom: 1px solid #edf0f5; }
-.admin-notification--unread { background: #f8faff; }
-.admin-notification-dot { width: 8px; height: 8px; margin-top: 7px; border-radius: 50%; background: #b9c1cf; flex-shrink: 0; }
-.admin-notification--unread .admin-notification-dot { background: var(--vlu-red); }
-.admin-notification-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
-.admin-read-badge { font-size: 11px; color: #657087; background: #edf0f5; border-radius: 4px; padding: 3px 7px; }
-.admin-notification--unread .admin-read-badge { color: #a0192b; background: #fcebed; }
-.admin-notification-note { margin: 9px 0 0; color: #657087; font-size: 12px; }
 .admin-dialog::backdrop { background: #1f225166; }
 .admin-dialog__filename { font-weight: 600; overflow-wrap: anywhere; }
 .admin-icon-button { display: grid; place-items: center; border: 0; border-radius: 6px; width: 36px; height: 36px; color: #657087; background: #f3f5f8; font-size: 24px !important; }
@@ -171,6 +163,4 @@
   .admin-button, .admin-more-button { min-height: 42px; }
   .admin-pagination > div { gap: 7px; width: 100%; justify-content: space-between; }
   .admin-pagination .admin-button { padding: 8px; font-size: 12px; }
-  .admin-notification { flex-wrap: wrap; padding: 18px 14px; }
-  .admin-notification .admin-source-info { min-width: calc(100% - 30px); }
 }

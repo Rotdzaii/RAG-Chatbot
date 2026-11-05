@@ -2,8 +2,9 @@
 
 Chạy frontend bằng `npm run dev`, đăng nhập tài khoản được backend cấp quyền
 admin; đăng nhập từ `/login` hoặc mở `/` sẽ vào `/admin` (chuyển đến
-`/admin/sources`), tài khoản thường vào `/chat`. Thông báo ở
-`/admin/notifications`. Dùng cấu hình Auth/API hiện có; không cần thêm UUID
+`/admin/sources`), tài khoản thường vào `/chat`. Đường dẫn cũ
+`/admin/notifications` chuyển về danh sách nguồn; không còn mục Thông báo.
+Dùng cấu hình Auth/API hiện có; không cần thêm UUID
 admin hoặc thông tin bí mật vào frontend.
 
 Backend chưa có API role riêng. Trang dùng `GET /admin/knowledge-sources?limit=1`
@@ -57,14 +58,11 @@ Các API được nối:
 - `PATCH /admin/knowledge-sources/{id}/metadata`: sửa riêng category/audience, không re-index.
 - `PATCH /admin/knowledge-sources/{id}/status`: JSON `{ is_active: boolean }`;
   trả `{ id, is_active, updated_at }`.
-- `GET /admin/source-change-notifications`: trả mảng thông báo, phân trang bằng
-  `limit`/`offset`, lọc `unread_only`; không có trường tổng số.
-- `POST /admin/source-change-notifications/{id}/read`: đánh dấu đã đọc.
 
 Upload trả `{ document_id, filename, chunk_count }`; thay file hoặc refresh trả
 thêm `status: "updated" | "unchanged"`. Xóa thành công trả 204, không đọc JSON.
 Sửa metadata trả `{ id, category, audience, updated_at }`. Các request quản trị
-đều có Bearer token; không thêm API hoặc thay đổi backend trong nhánh này.
+đều có Bearer token và yêu cầu quyền admin.
 
 Menu URL có “Mở URL gốc”. Menu file không có “Mở bản gốc”: backend đã merge
 chưa có `/admin/knowledge-sources/{id}/original` và danh sách không trả ID phiên
@@ -82,7 +80,8 @@ Tắt/bật nguồn cần xác nhận; thay file, refresh URL và sửa metadata
 thái tắt. Bật lại nguồn chỉ áp dụng cho câu hỏi mới; câu trả lời và citation đã
 lưu giữ nguyên. Không có tiến trình ingestion theo
 giai đoạn từ backend; UI hiển thị trạng thái đang chờ và kết quả request đồng
-bộ. Thông báo không tự refresh/re-index nguồn. Không tự retry thao tác ghi khi
+bộ. URL chỉ được cập nhật khi admin chủ động chọn Cập nhật URL; không còn checker
+hoặc thông báo thay đổi nội dung. Không tự retry thao tác ghi khi
 có lỗi; nên tải lại danh sách trước khi gửi lại nếu không rõ kết quả request.
 
 ## Kiểm tra bằng fixture
@@ -99,7 +98,7 @@ npm run build
 Playwright dùng Microsoft Edge headless đã cài trên máy. Cấu hình test khởi động
 Vite tại `127.0.0.1:5178`, đặt Auth/API thành địa chỉ fixture và chặn các request
 ngoài dev server hoặc mock. Không chạy backend, không kết nối DB/provider/URL
-VLU thật. Auth session, tài liệu và thông báo đều là fixture.
+VLU thật. Auth session và tài liệu đều là fixture.
 
 Ảnh Admin nằm trong `data/admin-review/`; kết quả test mặc định nằm trong
 `data/chat-progress-review/test-results/` (được `data/*` ignore). Có thể dùng
