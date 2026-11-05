@@ -37,6 +37,22 @@ async function filter(page: Page, values: { type?: string; active?: string; cate
   await dialog.getByRole('button', { name: 'Áp dụng', exact: true }).click()
 }
 
+test('retired notification bookmark opens sources without notification links or API requests on desktop and mobile', async ({ page }) => {
+  const mock = await fixture(page)
+  await page.goto('/admin/notifications')
+  await expect(page).toHaveURL(/\/admin\/sources$/)
+  await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
+  await expect(page.getByRole('link', { name: 'Thông báo', exact: true })).toHaveCount(0)
+  await expect(page.getByRole('button', { name: '+ Thêm nguồn', exact: true })).toBeVisible()
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.getByRole('button', { name: 'Mở điều hướng', exact: true }).click()
+  const navigation = page.getByRole('dialog', { name: 'Điều hướng quản trị' })
+  await expect(navigation.getByRole('link', { name: 'Thông báo', exact: true })).toHaveCount(0)
+  await navigation.getByRole('link', { name: 'Quản lý nguồn', exact: true }).click()
+  await expect(navigation).toHaveCount(0)
+  expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/admin/source-change-notifications'))).toBe(false)
+})
+
 test('API mock: reference catalog, real detail request, filters and keyboard menu', async ({ page }) => {
   const mock = await fixture(page)
   await page.goto('/admin/sources')
@@ -215,7 +231,7 @@ test('guest redirected, nonadmin forbidden and expired session can log in again'
   for (const denied of [0, 403, 401]) {
     const page = await browser.newPage()
     const mock = await fixture(page, { auth: denied !== 0, denied })
-    await page.goto('http://127.0.0.1:5178/admin/notifications')
+    await page.goto('http://127.0.0.1:5178/admin/sources')
     if (!denied) { await expect(page).toHaveURL(/\/login$/); expect(mock.requests).toHaveLength(0) }
     if (denied === 403) {
       await expect(page.getByRole('heading', { name: 'Bạn chưa có quyền quản trị' })).toBeVisible()
@@ -246,44 +262,6 @@ test('returning to chat preserves existing authenticated chat and history UI', a
   await expect(page).toHaveURL(/\/chat$/)
   await page.getByRole('link', { name: 'Mở trang quản trị' }).click()
   await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
-})
-
-test('API mock: notifications read action waits, reports errors, filters unread and never refreshes sources', async ({ page }) => {
-  const mock = await fixture(page)
-  await page.goto('/admin/notifications')
-  await expect(page.locator('.admin-notification')).toHaveCount(1)
-  await page.getByRole('checkbox', { name: 'Chỉ chưa đọc' }).check()
-  await expect(page.locator('.admin-notification--unread')).toHaveCount(1)
-  let release!: () => void
-  mock.hold(new Promise<void>(resolve => { release = resolve }))
-  mock.failMutations(503)
-  await page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true }).click()
-  await expect(page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true })).toBeDisabled()
-  await expect(page.getByText('Đang đánh dấu đã đọc…', { exact: true })).toBeVisible()
-  release()
-  await expect(page.getByRole('alert')).toContainText('Dịch vụ tạm thời chưa sẵn sàng.')
-  expect(mock.requests.filter(request => request.url().endsWith('/read'))).toHaveLength(1)
-  mock.hold(); mock.failMutations(0)
-  await page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true }).click()
-  await expect(page.getByRole('heading', { name: 'Không có thông báo chưa đọc' })).toBeVisible()
-  await page.getByRole('checkbox', { name: 'Chỉ chưa đọc' }).uncheck()
-  await expect(page.locator('.admin-read-badge')).toHaveText('Đã đọc')
-  await expect(page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true })).toHaveCount(0)
-  expect(mock.requests.filter(request => request.url().endsWith('/refresh'))).toHaveLength(0)
-})
-
-test('API mock: marking the final unread notification on page two returns to page one', async ({ page }) => {
-  await fixture(page, { manyNotifications: true })
-  await page.goto('/admin/notifications')
-  await page.getByRole('checkbox', { name: 'Chỉ chưa đọc' }).check()
-  await expect(page.locator('.admin-notification')).toHaveCount(20)
-  await page.getByRole('button', { name: 'Trang sau', exact: true }).click()
-  await expect(page.getByText('Trang 2', { exact: true })).toBeVisible()
-  await expect(page.locator('.admin-notification')).toHaveCount(1)
-  await page.getByRole('button', { name: 'Đánh dấu đã đọc', exact: true }).click()
-  await expect(page.getByText('Trang 1', { exact: true })).toBeVisible()
-  await expect(page.locator('.admin-notification')).toHaveCount(20)
-  await expect(page.getByRole('button', { name: 'Trang trước', exact: true })).toBeDisabled()
 })
 
 test('API mock: admin can open history and submit an SSE follow-up after returning to chat', async ({ page }) => {
@@ -435,9 +413,10 @@ test('API mock: viewport sidebar, sticky add, pagination and reference screensho
   const nav = page.getByRole('dialog', { name: 'Điều hướng quản trị' })
   await expect(nav.getByRole('button', { name: 'Đăng xuất', exact: true })).toBeInViewport()
   await page.screenshot({ path: join(reviewDir, 'admin-menu-mobile.png') })
-  await nav.getByRole('link', { name: 'Thông báo', exact: true }).click()
+  await expect(nav.getByRole('link', { name: 'Thông báo', exact: true })).toHaveCount(0)
+  await nav.getByRole('link', { name: 'Quản lý nguồn', exact: true }).click()
   await expect(nav).toHaveCount(0)
-  await expect(page.getByRole('heading', { name: 'Thông báo', exact: true })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Mở điều hướng', exact: true }).click()
   await page.getByRole('dialog').getByRole('link', { name: 'Quản lý nguồn', exact: true }).click()
   await openAdd(page)

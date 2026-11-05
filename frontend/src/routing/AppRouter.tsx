@@ -42,7 +42,7 @@ export function AppRouter() {
       />
       <Route path="/admin" element={<Navigate to="/admin/sources" replace />} />
       <Route path="/admin/sources" element={<AdminRoute />} />
-      <Route path="/admin/notifications" element={<AdminRoute />} />
+      <Route path="/admin/notifications" element={<Navigate to="/admin/sources" replace />} />
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )

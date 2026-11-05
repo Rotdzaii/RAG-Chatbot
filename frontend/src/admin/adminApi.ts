@@ -22,16 +22,6 @@ export async function getSource(token: string, id: string, signal?: AbortSignal)
   return (await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(id)}`, token, { signal })).json()
 }
 export type SourceMutation = { document_id: string; filename: string; chunk_count: number; status: 'updated' | 'unchanged' }
-export type SourceNotification = {
-  id: string
-  document_id: string
-  source_url: string
-  baseline_hash: string
-  observed_hash: string
-  detected_at: string
-  read_at: string | null
-}
-
 export async function listSources(token: string, offset = 0, sourceType = '', signal?: AbortSignal, limit = 20, filters: SourceMetadataInput = {}, active = ''): Promise<SourcePage> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (active) params.set('is_active', active)
@@ -67,15 +57,6 @@ export async function deleteSource(token: string, id: string) {
   await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(id)}`, token, { method: 'DELETE' })
 }
 
-export async function listNotifications(token: string, offset = 0, unreadOnly = false, signal?: AbortSignal): Promise<SourceNotification[]> {
-  const params = new URLSearchParams({ limit: '20', offset: String(offset), unread_only: String(unreadOnly) })
-  return (await authorizedRequest(`/admin/source-change-notifications?${params}`, token, { signal })).json()
-}
-
-export async function markNotificationRead(token: string, id: string): Promise<SourceNotification> {
-  return (await authorizedRequest(`/admin/source-change-notifications/${encodeURIComponent(id)}/read`, token, { method: 'POST' })).json()
-}
-
 export function sourceFile(file: File): File {
   if (!/\.(pdf|txt)$/i.test(file.name)) throw new Error('Chọn tài liệu PDF hoặc TXT.')
   if (!file.size) throw new Error('Tài liệu đang trống. Hãy chọn file khác.')
@@ -88,7 +69,7 @@ export function adminError(error: unknown): string {
   if (error instanceof ApiRequestError) {
     const messages: Record<number, string> = {
       400: 'Dữ liệu chưa hợp lệ. Kiểm tra tài liệu hoặc địa chỉ URL.',
-      404: 'Nguồn hoặc thông báo không còn tồn tại. Hãy tải lại danh sách.',
+      404: 'Nguồn không còn tồn tại. Hãy tải lại danh sách.',
       409: 'Nguồn đã tồn tại hoặc vừa được thay đổi. Hãy tải lại danh sách trước khi thử lại.',
       413: 'Nguồn vượt giới hạn 10 MiB. Hãy chọn tài liệu nhỏ hơn.',
       415: 'Định dạng không được hỗ trợ. Hãy dùng PDF, TXT hoặc trang web VLU có nội dung văn bản.',

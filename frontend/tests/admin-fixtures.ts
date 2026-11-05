@@ -6,14 +6,11 @@ const token = `${Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url'
 const session = { access_token: token, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_at: 4102444800, expires_in: 3600, user }
 const file = { is_active: true, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filename: 'Chương trình Marketing.pdf', mime_type: 'application/pdf', source_type: 'file', source_url: null, category: null as string | null, audience: null as string | null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-30T08:30:00Z', last_checked_at: null, chunk_count: 17 }
 const urlSource = { ...file, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', filename: 'Tài chính – Ngân hàng', source_type: 'url', source_url: 'https://www.vlu.edu.vn/academics/majors/tai-chinh-ngan-hang', mime_type: 'text/html', chunk_count: 26, last_checked_at: '2026-11-01T00:00:00Z' }
-const notification = { id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', document_id: urlSource.id, source_url: urlSource.source_url, baseline_hash: 'a'.repeat(64), observed_hash: 'b'.repeat(64), detected_at: '2026-11-01T00:00:00Z', read_at: null as string | null }
 
-async function fixture(page: Page, options: { auth?: boolean; denied?: number; empty?: boolean; many?: boolean; manyNotifications?: boolean } = {}) {
+async function fixture(page: Page, options: { auth?: boolean; denied?: number; empty?: boolean; many?: boolean } = {}) {
   const requests: Request[] = []
   const sources = options.empty ? [] : [structuredClone(file), structuredClone(urlSource)]
   if (options.many) for (let index = 0; index < 48; index++) sources.push({ ...structuredClone(file), id: `90000000-0000-4000-8000-${String(index).padStart(12, '0')}`, filename: `Tài liệu kiểm thử ${index}.pdf` })
-  const notifications = options.empty ? [] : [structuredClone(notification)]
-  if (options.manyNotifications) for (let index = 0; index < 20; index++) notifications.push({ ...structuredClone(notification), id: `80000000-0000-4000-8000-${String(index).padStart(12, '0')}` })
   let refreshStatus: 'updated' | 'unchanged' = 'unchanged'
   let mutationError = 0
   let listError = 0
@@ -112,19 +109,6 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
     if (request.method() === 'DELETE') {
       sources.splice(sources.findIndex(item => url.pathname.endsWith(item.id)), 1)
       await route.fulfill({ status: 204 }); return
-    }
-    if (url.pathname === '/admin/source-change-notifications') {
-      expect(request.method()).toBe('GET')
-      const offset = Number(url.searchParams.get('offset'))
-      const limit = Number(url.searchParams.get('limit'))
-      await route.fulfill({ json: notifications.filter(item => url.searchParams.get('unread_only') !== 'true' || !item.read_at).slice(offset, offset + limit) }); return
-    }
-    if (url.pathname.endsWith('/read')) {
-      expect(request.method()).toBe('POST')
-      expect(request.postData()).toBeNull()
-      const item = notifications.find(item => url.pathname.includes(item.id))!
-      item.read_at ??= '2026-11-02T02:00:00Z'
-      await route.fulfill({ json: item }); return
     }
     if (url.pathname === '/conversations') { await route.fulfill({ json: options.many ? Array.from({ length: 60 }, (_, index) => ({ id: `history-${index}`, title: `Hội thoại kiểm thử ${index}`, is_pinned: false, created_at: file.created_at, updated_at: file.updated_at })) : [] }); return }
     await route.abort()
