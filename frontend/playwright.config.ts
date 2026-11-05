@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test'
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['chat-progress.spec.ts', 'source-files.spec.ts'],
+  testMatch: ['chat-progress.spec.ts', 'source-files.spec.ts', 'admin.spec.ts'],
   outputDir: process.env.CHAT_REVIEW_DIR ? `${process.env.CHAT_REVIEW_DIR}/test-results` : '../data/chat-progress-review/test-results',
   workers: 1,
   use: {

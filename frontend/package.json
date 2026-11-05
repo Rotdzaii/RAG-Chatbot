@@ -9,10 +9,12 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:chat": "playwright test tests/chat-progress.spec.ts",
-    "test:source-files": "playwright test tests/source-files.spec.ts"
+    "test:source-files": "playwright test tests/source-files.spec.ts",
+    "test:admin": "playwright test tests/admin.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",
+    "gsap": "^3.15.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-markdown": "^10.1.0",

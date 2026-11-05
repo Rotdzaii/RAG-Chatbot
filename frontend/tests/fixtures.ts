@@ -27,6 +27,7 @@ export async function fixture(page: Page) {
     }
     if (url.origin === 'http://127.0.0.1:48080') {
       expect(request.headers().authorization).toBe(`Bearer ${token}`)
+      if (url.pathname === '/admin/knowledge-sources') return route.fulfill({ status: 403, json: { detail: 'Admin access required' } })
       if (url.pathname === '/conversations') return route.fulfill({ json: [] })
     }
     return route.abort()

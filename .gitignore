@@ -39,3 +39,11 @@ data/*
 
 # Local files
 *.local
+
+# Browser test output and local frontend caches
+/frontend/test-results/
+/frontend/playwright-report/
+/frontend/blob-report/
+/frontend/.playwright/
+/frontend/.eslintcache
+/frontend/.vite/

@@ -1,8 +1,12 @@
 import { useState } from 'react'
 import { useAuth } from './useAuth'
+import { Link, useLocation } from 'react-router'
+import { useAdminAccess } from './useAdminAccess'
 
 export function AccountControl() {
   const { user, signOut } = useAuth()
+  const { status, retry } = useAdminAccess()
+  const location = useLocation()
   const [isPending, setIsPending] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const email = user?.email ?? ''
@@ -29,6 +33,10 @@ export function AccountControl() {
 
   return (
     <div className="account-control">
+      {status === 'admin' && !location.pathname.startsWith('/admin') && <Link className="account-admin-link" to="/admin">Mở trang quản trị</Link>}
+      {status === 'checking' && !location.pathname.startsWith('/admin') && <span className="account-access-status" role="status">Đang xác nhận quyền…</span>}
+      {status === 'error' && !location.pathname.startsWith('/admin') && <div className="account-access-status"><span>Chưa xác nhận được quyền.</span> <button type="button" onClick={retry}>Thử lại</button></div>}
+      {status === 'expired' && !location.pathname.startsWith('/admin') && <Link className="account-admin-link" to="/login">Xác thực lại phiên đăng nhập</Link>}
       <div className="account-control__row">
         <span className="account-avatar" aria-hidden="true">{accountInitial}</span>
         {email && (
