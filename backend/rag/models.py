@@ -68,6 +68,38 @@ class Document(Base):
         back_populates="document", cascade="all, delete-orphan"
     )
 
+    change_notifications: Mapped[list[SourceChangeNotification]] = relationship(
+        back_populates="document", cascade="all, delete-orphan"
+    )
+
+
+class SourceChangeNotification(Base):
+    __tablename__ = "source_change_notifications"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id", "baseline_hash", "observed_hash",
+            name="uq_source_change_notification_transition",
+        ),
+        Index("ix_source_change_notifications_read_at", "read_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True), primary_key=True,
+        default=uuid4, server_default=text("gen_random_uuid()"),
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        PostgreSQLUUID(as_uuid=True),
+        ForeignKey("documents.id", ondelete="CASCADE"), nullable=False,
+    )
+    baseline_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    detected_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()"), nullable=False,
+    )
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    document: Mapped[Document] = relationship(back_populates="change_notifications")
+
 
 class Chunk(Base):
     __tablename__ = "chunks"
