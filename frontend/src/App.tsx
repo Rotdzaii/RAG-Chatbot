@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import {
   ApiNetworkError,
   ApiRequestError,
   QuestionAuthenticationError,
-  askQuestion,
+  askQuestionWithProgress,
   deleteConversation as deleteConversationRequest,
   getConversationMessages,
   listConversations,
@@ -74,6 +74,7 @@ function App() {
   ])
   const [activeId, setActiveId] = useState('workspace-0')
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null)
+  const [revealingTurn, setRevealingTurn] = useState<{ conversationId: string; turnId: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [referencePanelOpen, setReferencePanelOpen] = useState(false)
@@ -91,6 +92,8 @@ function App() {
   const nextWorkspaceId = useRef(1)
   const nextTurnId = useRef(1)
   const transcriptRef = useRef<HTMLDivElement>(null)
+  const followTranscript = useRef(true)
+  const preserveComposerFocus = useRef(false)
   const composerInputRef = useRef<HTMLTextAreaElement>(null)
   const mobileHistoryTriggerRef = useRef<HTMLButtonElement>(null)
   const referencePanelTriggerRef = useRef<HTMLButtonElement>(null)
@@ -144,20 +147,29 @@ function App() {
     finishPendingQuestionConsumption()
     return () => {
       mountedRef.current = false
+      requestRef.current?.controller.abort()
     }
   }, [])
 
+  useLayoutEffect(() => {
+    if (preserveComposerFocus.current) {
+      preserveComposerFocus.current = false
+      if (document.activeElement === document.body) composerInputRef.current?.focus({ preventScroll: true })
+    }
+  }, [activeConversation?.turns.length])
+
   useEffect(() => {
-    if (transcriptRef.current) {
+    if (transcriptRef.current && followTranscript.current) {
       transcriptRef.current.scrollTop = transcriptRef.current.scrollHeight
     }
   }, [activeId, activeConversation?.turns])
 
   useEffect(() => {
-    if (activeConversation?.turns.length && !pendingRequest) {
-      composerInputRef.current?.focus()
-    }
-  }, [activeConversation?.turns.length, activeId, pendingRequest])
+    const motion = window.matchMedia('(prefers-reduced-motion: reduce)')
+    const clear = () => { if (motion.matches) setRevealingTurn(null) }
+    motion.addEventListener('change', clear)
+    return () => motion.removeEventListener('change', clear)
+  }, [])
 
   useEffect(() => {
     const controller = new AbortController()
@@ -220,6 +232,8 @@ function App() {
   )
 
   const createNew = useCallback(() => {
+    setRevealingTurn(null)
+    followTranscript.current = true
     const id = `workspace-${nextWorkspaceId.current++}`
     setConversations((current) => [
       createConversation(id),
@@ -245,6 +259,8 @@ function App() {
   const selectConversation = useCallback((conversationId: string) => {
     const conversation = conversationsRef.current.find((item) => item.id === conversationId)
     if (!conversation) return
+    setRevealingTurn(null)
+    followTranscript.current = true
     setActiveId(conversationId)
     setMobileDrawerOpen(false)
     setReferencePanelOpen(false)
@@ -279,12 +295,16 @@ function App() {
     if (!question || requestRef.current) return
     const origin = conversationsRef.current.find((item) => item.id === conversationId)
     if (!origin || origin.messagesStatus === 'loading') return
+    preserveComposerFocus.current = !origin.turns.length && document.activeElement === composerInputRef.current
 
     const turnId = retryTurnId ?? `turn-${nextTurnId.current++}`
-    const request = { conversationId, turnId }
+    const previous = retryTurnId ? origin.turns.find(turn => turn.id === retryTurnId) : undefined
+    const requestId = previous?.requestId ?? crypto.randomUUID()
+    const requestConversationId = previous?.requestId ? previous.requestConversationId : origin.serverId ?? undefined
+    const request = { conversationId, turnId, controller: new AbortController() }
     requestRef.current = request
     setPendingRequest(request)
-    const pendingTurn: ChatTurn = { id: turnId, question, status: 'pending' }
+    const pendingTurn: ChatTurn = { id: turnId, question, status: 'pending', stage: 'sending', requestId, requestConversationId }
     setConversations((current) => current.map((item) => {
       if (item.id !== conversationId) return item
       return {
@@ -300,13 +320,21 @@ function App() {
 
     try {
       if (!accessToken) throw new QuestionAuthenticationError()
-      const response = await askQuestion(
+      const response = await askQuestionWithProgress(
         question,
         accessToken,
-        5,
-        origin.serverId ?? undefined,
+        requestId,
+        requestConversationId,
+        request.controller.signal,
+        stage => {
+          if (!mountedRef.current || requestRef.current !== request) return
+          setConversations(current => current.map(item => item.id !== conversationId ? item : {
+            ...item, turns: item.turns.map(turn => turn.id === turnId && turn.status === 'pending' && turn.stage !== stage ? { ...turn, stage } : turn),
+          }))
+        },
       )
       if (!mountedRef.current) return
+      if (activeIdRef.current === conversationId && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) setRevealingTurn({ conversationId, turnId })
       const completedAt = Date.now()
       setConversations((current) => current.map((item) =>
         item.id === conversationId
@@ -572,6 +600,12 @@ function App() {
                     turns={activeConversation.turns}
                     isRequestPending={requestPending}
                     containerRef={transcriptRef}
+                    onScroll={() => {
+                      const element = transcriptRef.current
+                      if (element) followTranscript.current = element.scrollHeight - element.clientHeight - element.scrollTop < 64
+                    }}
+                    revealTurnId={revealingTurn?.conversationId === activeConversation.id ? revealingTurn.turnId : undefined}
+                    onRevealEnd={() => setRevealingTurn(null)}
                     onRetry={(_question, turnId) => retryTurn(activeConversation.id, turnId)}
                   />
                   {renderComposer()}

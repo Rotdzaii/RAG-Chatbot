@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
 from rag.provider_errors import wrap_rate_limit_error
+from rag.progress import notify
 
 
 MODEL = "gemini-3.8-flash"
@@ -67,6 +68,7 @@ def _invoke_generation_model(
     prompt: Any,
     config: RunnableConfig,
 ) -> Any:
+    notify("generation")
     started_at = time.perf_counter()
     try:
         return model.invoke(prompt, config=config)

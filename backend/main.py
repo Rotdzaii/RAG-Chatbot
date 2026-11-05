@@ -7,6 +7,7 @@ from database import engine
 from rag.admin_router import router as admin_router
 from rag.conversation_router import router as conversation_router
 from rag.router import router as documents_router
+from rag.progress_router import router as progress_router
 
 
 app = FastAPI(title="RAG Chatbot API")
@@ -18,6 +19,7 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 app.include_router(documents_router)
+app.include_router(progress_router)
 app.include_router(conversation_router)
 app.include_router(admin_router)
 

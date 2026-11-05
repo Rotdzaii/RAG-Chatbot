@@ -1,10 +1,12 @@
-import type { QuestionResponse } from '../api'
+import type { QuestionResponse, QuestionStage } from '../api'
 
 export type ChatTurn = {
   id: string
   question: string
+  requestId?: string
+  requestConversationId?: string
 } & (
-  | { status: 'pending' }
+  | { status: 'pending'; stage: QuestionStage | 'sending' }
   | { status: 'complete'; response: QuestionResponse }
   | { status: 'error'; message?: string }
 )
@@ -28,6 +30,7 @@ export type Conversation = {
 export type PendingRequest = {
   conversationId: string
   turnId: string
+  controller: AbortController
 }
 
 export type ConversationActionKind = 'rename' | 'pin' | 'delete'

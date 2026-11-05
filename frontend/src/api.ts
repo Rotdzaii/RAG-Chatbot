@@ -218,3 +218,49 @@ export async function askQuestion(
   })
   return response.json() as Promise<QuestionResponse>
 }
+
+export type QuestionStage = 'query' | 'retrieval' | 'generation' | 'validation'
+
+export async function askQuestionWithProgress(
+  question: string, accessToken: string | undefined, requestId: string,
+  conversationId: string | undefined, signal: AbortSignal,
+  onProgress: (stage: QuestionStage) => void,
+): Promise<QuestionResponse> {
+  const response = await authorizedRequest('/questions/stream', accessToken, {
+    method: 'POST', signal, headers: { Accept: 'text/event-stream' },
+    body: JSON.stringify({ question, top_k: 5, request_id: requestId, ...(conversationId ? { conversation_id: conversationId } : {}) }),
+  })
+  if (!response.body || !response.headers.get('content-type')?.includes('text/event-stream')) throw new ApiNetworkError()
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder()
+  let pending = ''
+  try {
+    while (true) {
+      const { done, value } = await reader.read()
+      if (done) throw new ApiNetworkError()
+      pending += decoder.decode(value, { stream: true })
+      let boundary: RegExpExecArray | null
+      while ((boundary = /\r?\n\r?\n/.exec(pending))) {
+        const frame = pending.slice(0, boundary.index)
+        pending = pending.slice(boundary.index + boundary[0].length)
+        const lines = frame.split(/\r?\n/)
+        const event = lines.find(line => line.startsWith('event:'))?.slice(6).trim()
+        const payload = lines.filter(line => line.startsWith('data:')).map(line => line.slice(5).trimStart()).join('\n')
+        if (!payload) continue
+        const data = JSON.parse(payload) as Record<string, unknown>
+        if (data.request_id !== requestId) throw new ApiNetworkError()
+        if (event === 'progress' && ['query', 'retrieval', 'generation', 'validation'].includes(String(data.stage))) onProgress(data.stage as QuestionStage)
+        if (event === 'error') {
+          const status = Number(data.status)
+          if (status === 401) throw new QuestionAuthenticationError()
+          throw new ApiRequestError(typeof data.detail === 'string' ? data.detail : 'Request failed', status, status === 404 ? 'not-found' : status >= 500 ? 'server' : 'request')
+        }
+        if (event === 'result') {
+          const result = data.response as QuestionResponse | undefined
+          if (!result || typeof result.answer !== 'string' || typeof result.conversation_id !== 'string' || !Array.isArray(result.sources)) throw new ApiNetworkError()
+          return result
+        }
+      }
+    }
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock() }
+}

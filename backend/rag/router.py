@@ -1,3 +1,4 @@
+from contextlib import ExitStack
 from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
@@ -20,6 +21,9 @@ from rag.ocr import OCRFailed, OCRUnavailable
 from rag.models import Conversation, Message
 from rag.qa import answer_question
 from rag.query_processing import QueryProcessingError
+from rag.progress import (
+    QuestionCancelled, check_connected, current, message_id, notify, request_guard,
+)
 
 
 router = APIRouter()
@@ -66,7 +70,24 @@ def answer_question_request(
     authenticated_user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
 ) -> QuestionResponse:
     session = SessionLocal()
+    guard = ExitStack()
     try:
+        guard.enter_context(request_guard(session, authenticated_user.id))
+        progress = current.get()
+        if progress is not None:
+            saved = session.get(Message, message_id(authenticated_user.id, "assistant"))
+            if saved is not None:
+                user_message = session.get(Message, message_id(authenticated_user.id, "user"))
+                owned = get_owned_conversation(session, saved.conversation_id, authenticated_user.id)
+                expected = [{"request_fingerprint": progress.fingerprint}]
+                if owned is None or user_message is None or user_message.citations != expected:
+                    raise HTTPException(status_code=409, detail="Question request does not match")
+                notify("validation")
+                return QuestionResponse(
+                    answer=saved.content,
+                    sources=saved.citations or [],
+                    conversation_id=saved.conversation_id,
+                )
         conversation = None
         if request.conversation_id is not None:
             conversation = get_owned_conversation(
@@ -93,6 +114,7 @@ def answer_question_request(
                 top_k=request.top_k,
                 history=history,
             )
+        notify("validation")
         sources = [
             QuestionSource(
                 citation=citation,
@@ -115,7 +137,7 @@ def answer_question_request(
         assistant_message_time = user_message_time + timedelta(microseconds=1)
         if conversation is None:
             conversation = Conversation(
-                id=uuid4(),
+                id=message_id(authenticated_user.id, "conversation") or uuid4(),
                 user_id=authenticated_user.id,
                 title=create_title_from_question(request.question),
                 is_pinned=False,
@@ -137,15 +159,15 @@ def answer_question_request(
         session.add_all(
             [
                 Message(
-                    id=uuid4(),
+                    id=message_id(authenticated_user.id, "user") or uuid4(),
                     conversation_id=conversation.id,
                     role="user",
                     content=request.question,
-                    citations=None,
+                    citations=[{"request_fingerprint": progress.fingerprint}] if progress else None,
                     created_at=user_message_time,
                 ),
                 Message(
-                    id=uuid4(),
+                    id=message_id(authenticated_user.id, "assistant") or uuid4(),
                     conversation_id=conversation.id,
                     role="assistant",
                     content=result.answer,
@@ -154,12 +176,17 @@ def answer_question_request(
                 ),
             ]
         )
-        session.commit()
-        return QuestionResponse(
+        response = QuestionResponse(
             answer=result.answer,
             sources=sources,
             conversation_id=conversation.id,
         )
+        check_connected()
+        session.commit()
+        return response
+    except QuestionCancelled:
+        session.rollback()
+        raise
     except HTTPException:
         raise
     except QueryProcessingError as error:
@@ -178,7 +205,10 @@ def answer_question_request(
             status_code=503, detail="Question answering is unavailable"
         ) from error
     finally:
-        session.close()
+        try:
+            session.close()
+        finally:
+            guard.close()
 
 
 @router.post(
