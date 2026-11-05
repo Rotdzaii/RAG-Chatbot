@@ -29,6 +29,12 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
                     "chunk_id": str(chunk.chunk_id),
                     "document_id": str(chunk.document_id),
                     "filename": chunk.filename,
+                    "mime_type": chunk.mime_type,
+                    "source_url": chunk.source_url,
+                    "source_file_version_id": (
+                        str(chunk.source_file_version_id)
+                        if chunk.source_file_version_id is not None else None
+                    ),
                     "chunk_index": chunk.chunk_index,
                     "page_start": chunk.page_start,
                     "page_end": chunk.page_end,

@@ -46,6 +46,13 @@ def process_result(output: str, code: int = 0) -> SimpleNamespace:
 
 
 class PDFOCRTests(unittest.TestCase):
+    def setUp(self):
+        self.storage = tempfile.TemporaryDirectory()
+        self.addCleanup(self.storage.cleanup)
+        storage_patch = patch("rag.source_files.source_file_directory", return_value=Path(self.storage.name))
+        storage_patch.start()
+        self.addCleanup(storage_patch.stop)
+
     def engine(self, text: str = "Tuyển sinh Việt Nam\nEnglish admissions"):
         return patch("rag.ocr.subprocess.run", side_effect=[
             process_result("List of available languages (2):\neng\nvie\n"),

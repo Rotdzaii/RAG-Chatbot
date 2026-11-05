@@ -1,4 +1,5 @@
 from hashlib import sha256
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
@@ -6,7 +7,8 @@ from rag.chunking import TextChunk, chunk_text_with_offsets
 from rag.embeddings import embed_documents
 from rag.extraction import PageSpan, extract_content
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
-from rag.models import Chunk, Document
+from rag.models import Chunk, Document, SourceFileVersion
+from rag.source_files import remove_version, store_version
 
 
 MAX_URL_CHUNKS = 50
@@ -70,14 +72,22 @@ def ingest_document(
         content, mime_type, is_url=source_url is not None
     )
 
+    digest = sha256(content).hexdigest()
+    file_version = (
+        SourceFileVersion(
+            id=uuid4(), mime_type=mime_type, content_hash=digest,
+            byte_size=len(content),
+        ) if source_url is None else None
+    )
     document = Document(
         filename=filename,
         mime_type=mime_type,
-        content_hash=sha256(content).hexdigest(),
+        content_hash=digest,
         source_type="url" if source_url is not None else "file",
         source_url=source_url,
         embedding_profile=current_embedding_profile(),
         chunking_profile=CHUNKING_PROFILE,
+        file_versions=[file_version] if file_version is not None else [],
         chunks=[
             _build_chunk(
                 index,
@@ -88,12 +98,22 @@ def ingest_document(
             for index, (chunk, embedding) in enumerate(zip(chunks, embeddings))
         ],
     )
+    if file_version is not None:
+        for chunk in document.chunks:
+            chunk.source_file_version_id = file_version.id
+            chunk.source_file_version = file_version
 
+    stored = False
     try:
+        if file_version is not None:
+            store_version(file_version.id, mime_type, content)
+            stored = True
         session.add(document)
         session.commit()
     except Exception:
         session.rollback()
+        if stored and file_version is not None:
+            remove_version(file_version.id, mime_type)
         raise
 
     return document

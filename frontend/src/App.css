@@ -969,7 +969,9 @@ textarea:focus-visible,
   list-style: none;
 }
 
-.reference-sources-list a {
+.reference-sources-list a,
+.reference-sources-list button,
+.reference-sources-list li > .reference-source__content {
   display: flex;
   min-width: 0;
   align-items: flex-start;
@@ -980,9 +982,14 @@ textarea:focus-visible,
   color: #3f4658;
   background: rgba(255, 255, 255, 0.68);
   text-decoration: none;
+  font: inherit;
+  text-align: left;
 }
 
-.reference-sources-list a:hover {
+.reference-sources-list button { width: 100%; cursor: pointer; }
+
+.reference-sources-list a:hover,
+.reference-sources-list button:hover {
   border-color: #cec8c1;
   background: #fff;
 }
@@ -1256,6 +1263,7 @@ textarea:focus-visible,
 .conversation-toolbar__sources:focus-visible,
 .reference-sources-panel__close:focus-visible,
 .reference-sources-list a:focus-visible,
+.reference-sources-list button:focus-visible,
 .microphone-button:focus-visible,
 .chat-dialog button:focus-visible {
   outline: 3px solid rgba(215, 33, 52, 0.25);

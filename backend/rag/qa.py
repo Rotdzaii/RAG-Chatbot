@@ -69,6 +69,12 @@ def answer_question(
             chunk_id=UUID(str(document.metadata["chunk_id"])),
             document_id=UUID(str(document.metadata["document_id"])),
             filename=str(document.metadata["filename"]),
+            mime_type=document.metadata.get("mime_type"),
+            source_url=document.metadata.get("source_url"),
+            source_file_version_id=(
+                UUID(str(document.metadata["source_file_version_id"]))
+                if document.metadata.get("source_file_version_id") is not None else None
+            ),
             chunk_index=int(document.metadata["chunk_index"]),
             page_start=(
                 int(document.metadata["page_start"])

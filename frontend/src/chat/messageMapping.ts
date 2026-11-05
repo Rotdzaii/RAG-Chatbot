@@ -8,6 +8,9 @@ function isQuestionSource(value: unknown): value is QuestionSource {
     && typeof source.chunk_id === 'string'
     && typeof source.document_id === 'string'
     && typeof source.filename === 'string'
+    && (source.source_url === undefined || source.source_url === null || typeof source.source_url === 'string')
+    && (source.source_file_version_id === undefined || source.source_file_version_id === null || typeof source.source_file_version_id === 'string')
+    && (source.mime_type === undefined || source.mime_type === null || typeof source.mime_type === 'string')
     && typeof source.chunk_index === 'number'
     && (source.page_start === undefined || source.page_start === null || typeof source.page_start === 'number')
     && (source.page_end === undefined || source.page_end === null || typeof source.page_end === 'number')

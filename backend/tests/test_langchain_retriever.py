@@ -25,6 +25,7 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
         session = Mock(spec=Session)
         first_chunk_id = uuid4()
         first_document_id = uuid4()
+        version_id = uuid4()
         second_chunk_id = uuid4()
         second_document_id = uuid4()
         chunks = [
@@ -32,6 +33,8 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                 chunk_id=first_chunk_id,
                 document_id=first_document_id,
                 filename="handbook.pdf",
+                mime_type="application/pdf",
+                source_file_version_id=version_id,
                 chunk_index=4,
                 content="First result",
                 cosine_distance=0.1,
@@ -68,6 +71,9 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                     "chunk_id": str(first_chunk_id),
                     "document_id": str(first_document_id),
                     "filename": "handbook.pdf",
+                    "mime_type": "application/pdf",
+                    "source_url": None,
+                    "source_file_version_id": str(version_id),
                     "chunk_index": 4,
                     "page_start": 7,
                     "page_end": 7,
@@ -77,6 +83,9 @@ class SQLAlchemyVectorRetrieverTests(unittest.TestCase):
                     "chunk_id": str(second_chunk_id),
                     "document_id": str(second_document_id),
                     "filename": "policy.txt",
+                    "mime_type": None,
+                    "source_url": None,
+                    "source_file_version_id": None,
                     "chunk_index": 1,
                     "page_start": None,
                     "page_end": None,

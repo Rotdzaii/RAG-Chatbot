@@ -1,3 +1,5 @@
+from pathlib import Path
+import tempfile
 """Exercise the PDF and URL HTTP boundaries without a DB or provider call."""
 
 import sys
@@ -40,6 +42,11 @@ def fake_embed(texts: list[str]) -> list[list[float]]:
 
 class P6HTTPContractTests(unittest.TestCase):
     def setUp(self) -> None:
+        self.storage = tempfile.TemporaryDirectory()
+        self.addCleanup(self.storage.cleanup)
+        storage_patch = patch("rag.source_files.source_file_directory", return_value=Path(self.storage.name))
+        storage_patch.start()
+        self.addCleanup(storage_patch.stop)
         self.previous_overrides = app.dependency_overrides.copy()
         app.dependency_overrides.clear()
         app.dependency_overrides[require_admin] = lambda: AuthenticatedUser(id=uuid4())

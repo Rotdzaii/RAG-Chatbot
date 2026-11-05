@@ -52,6 +52,9 @@ class QuestionSource(BaseModel):
     chunk_id: UUID
     document_id: UUID
     filename: str
+    mime_type: str | None = None
+    source_url: str | None = None
+    source_file_version_id: UUID | None = None
     chunk_index: int
     page_start: int | None = None
     page_end: int | None = None
@@ -121,6 +124,9 @@ def answer_question_request(
                 chunk_id=chunk.chunk_id,
                 document_id=chunk.document_id,
                 filename=chunk.filename,
+                mime_type=chunk.mime_type,
+                source_url=chunk.source_url,
+                source_file_version_id=chunk.source_file_version_id,
                 chunk_index=chunk.chunk_index,
                 page_start=chunk.page_start,
                 page_end=chunk.page_end,
@@ -244,7 +250,7 @@ def upload_document(
         raise HTTPException(status_code=400, detail=str(error)) from error
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Database unavailable") from error
-    except (GoogleGenerativeAIError, RuntimeError) as error:
+    except (GoogleGenerativeAIError, RuntimeError, OSError) as error:
         raise HTTPException(status_code=503, detail="Ingestion is unavailable") from error
     finally:
         session.close()
