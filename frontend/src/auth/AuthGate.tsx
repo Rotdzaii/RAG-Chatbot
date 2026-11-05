@@ -2,6 +2,7 @@ import type { PropsWithChildren } from 'react'
 import { Navigate, useLocation } from 'react-router'
 import { AuthLoadingScreen } from './AuthLoadingScreen'
 import { useAuth } from './useAuth'
+import { PostLoginRedirect } from './PostLoginRedirect'
 import './auth.css'
 
 type AuthGateProps = PropsWithChildren<{
@@ -20,12 +21,12 @@ function getIntendedRoute(state: unknown) {
   ) {
     const { from } = state as IntendedRouteState
 
-    if (typeof from === 'string' && from.startsWith('/') && !from.startsWith('//')) {
+    if (typeof from === 'string' && /^\/(chat|admin)(\/|[?#]|$)/.test(from)) {
       return from
     }
   }
 
-  return '/chat'
+  return undefined
 }
 
 export function AuthGate({ children, access }: AuthGateProps) {
@@ -42,7 +43,7 @@ export function AuthGate({ children, access }: AuthGateProps) {
   }
 
   if (access === 'guest' && user) {
-    return <Navigate to={getIntendedRoute(location.state)} replace />
+    return <PostLoginRedirect intendedRoute={getIntendedRoute(location.state)} />
   }
 
   return children

@@ -304,6 +304,7 @@ textarea:focus-visible,
 .history-sidebar__footer,
 .history-drawer__footer {
   flex: 0 0 auto;
+  margin-top: auto;
   padding-top: 10px;
   border-top: 1px solid #dedbd8;
 }
@@ -396,6 +397,9 @@ textarea:focus-visible,
 .history-sidebar--collapsed .account-control__row { justify-content: center; padding: 3px; }
 .history-sidebar--collapsed .logout-button { width: 36px; min-height: 36px; flex-basis: 36px; }
 .history-sidebar--collapsed .logout-error { position: fixed; right: auto; bottom: 12px; left: 66px; }
+.history-sidebar:not(.history-sidebar--collapsed) .account-control__row, .history-drawer .account-control__row { display: grid; grid-template-columns: 30px minmax(0, 1fr); gap: 10px; }
+.history-sidebar:not(.history-sidebar--collapsed) .logout-button, .history-drawer .logout-button { grid-column: 1 / -1; width: 100%; min-height: 38px; gap: 8px; border: 1px solid #dedbd8; border-radius: 7px; }
+.history-sidebar:not(.history-sidebar--collapsed) .logout-button__label, .history-drawer .logout-button__label { display: inline; }
 
 /* Main chat column */
 .chat-main {

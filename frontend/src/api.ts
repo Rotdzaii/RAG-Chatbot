@@ -7,6 +7,8 @@ export type DocumentUploadResponse = {
   chunk_count: number
 }
 
+export type SourceMetadataInput = { category?: string | null; audience?: string | null }
+
 export type QuestionSource = {
   citation: number
   chunk_id: string
@@ -100,7 +102,7 @@ function requireAccessToken(accessToken: string | undefined) {
   return token
 }
 
-async function authorizedRequest(
+export async function authorizedRequest(
   path: string,
   accessToken: string | undefined,
   init: RequestInit = {},
@@ -112,7 +114,7 @@ async function authorizedRequest(
     response = await fetch(`${API_BASE_URL}${path}`, {
       ...init,
       headers: {
-        ...(init.body === undefined ? {} : { 'Content-Type': 'application/json' }),
+        ...(init.body === undefined || init.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
         ...init.headers,
         Authorization: `Bearer ${token}`,
       },
@@ -137,24 +139,17 @@ async function authorizedRequest(
   return response
 }
 
-async function throwForUploadError(response: Response): Promise<void> {
-  if (response.ok) return
-  throw new ApiRequestError(
-    await readErrorMessage(response),
-    response.status,
-    response.status === 400 || response.status === 422 ? 'validation' : 'server',
-  )
-}
-
-export async function uploadDocument(file: File): Promise<DocumentUploadResponse> {
+export async function uploadDocument(file: File, accessToken?: string, metadata: SourceMetadataInput = {}): Promise<DocumentUploadResponse> {
   const formData = new FormData()
   formData.append('file', file)
+  for (const [key, value] of Object.entries(metadata)) {
+    if (value != null) formData.append(key, value)
+  }
 
-  const response = await fetch(`${API_BASE_URL}/documents`, {
+  const response = await authorizedRequest('/documents', accessToken, {
     method: 'POST',
     body: formData,
   })
-  await throwForUploadError(response)
   return response.json() as Promise<DocumentUploadResponse>
 }
 

@@ -334,6 +334,18 @@
 
 @keyframes auth-spin { to { transform: rotate(360deg); } }
 
+.access-feedback { min-height: 100dvh; padding: clamp(24px, 4vw, 48px); background: #f3f5f8; color: #1f2251; }
+.access-feedback main { max-width: 600px; margin: 15vh auto; }
+.access-feedback h1 { font-size: clamp(25px, 4vw, 32px); }
+.access-feedback p { color: #657087; line-height: 1.7; }
+.access-feedback__button { padding: 11px 18px; border: 1px solid #d72134; border-radius: 7px; color: #fff; background: #d72134; cursor: pointer; }
+.access-feedback__button:disabled { opacity: .6; cursor: wait; }
+.access-feedback__chat { display: inline-block; margin: 16px; color: #1f2251; }
+.account-admin-link { display: block; padding: 8px 4px; color: #b7192b; font-size: 12px; font-weight: 600; text-decoration: none; }
+.account-admin-link:hover { text-decoration: underline; }
+.account-access-status { display: block; padding: 8px 4px; color: #657087; font-size: 11px; line-height: 1.6; }
+.account-access-status button { border: 0; color: #b7192b; background: transparent; text-decoration: underline; cursor: pointer; }
+
 @media (max-width: 980px) {
   .login-page { grid-template-columns: minmax(420px, 56%) minmax(0, 1fr); }
   .login-panel { padding: 38px clamp(28px, 5vw, 56px); }
