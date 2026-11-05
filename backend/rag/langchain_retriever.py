@@ -5,6 +5,7 @@ from pydantic import ConfigDict, Field
 from sqlalchemy.orm import Session
 
 from rag.retrieval import retrieve_chunks
+from rag.progress import notify
 
 
 class SQLAlchemyVectorRetriever(BaseRetriever):
@@ -19,6 +20,7 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
         *,
         run_manager: CallbackManagerForRetrieverRun,
     ) -> list[Document]:
+        notify("retrieval")
         chunks = retrieve_chunks(self.session, query, top_k=self.top_k)
         return [
             Document(

@@ -65,7 +65,7 @@ export function ChatComposer({
           ref={inputRef}
           value={draft}
           onChange={(event) => onDraftChange(event.target.value)}
-          disabled={isPending}
+          readOnly={isPending}
           onKeyDown={handleKeyDown}
           placeholder="Ví dụ: Điều kiện xét tốt nghiệp gồm những gì?"
           aria-describedby={describedBy ?? (visibleHelperText ? 'composer-help' : undefined)}

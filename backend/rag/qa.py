@@ -10,6 +10,7 @@ from rag.query_contract import HistoryMessage
 from rag.query_processing import process_query
 from rag.retrieval import RetrievedChunk
 from rag.tracing import LangChainTraceHandler
+from rag.progress import notify
 
 
 @dataclass(frozen=True, slots=True)
@@ -34,8 +35,10 @@ def answer_question(
 ) -> QuestionAnswer:
     from config import settings
 
+    notify("query")
     query_result = process_query(question, history)
     if query_result.action == "clarify":
+        notify("validation")
         if query_result.clarification is None:
             raise ValueError("Clarification result is missing clarification text")
         return QuestionAnswer(
@@ -60,6 +63,7 @@ def answer_question(
         )
     else:
         result = pipeline.invoke(pipeline_input)
+    notify("validation")
     sources = [
         RetrievedChunk(
             chunk_id=UUID(str(document.metadata["chunk_id"])),
