@@ -9,6 +9,7 @@ from rag.extraction import PageSpan, extract_content
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document, SourceFileVersion
 from rag.source_files import remove_version, store_version
+from rag.source_metadata import normalize_metadata
 
 
 MAX_URL_CHUNKS = 50
@@ -64,10 +65,14 @@ def ingest_document(
     content: bytes,
     *,
     source_url: str | None = None,
+    category: str | None = None,
+    audience: str | None = None,
 ) -> Document:
     if not filename.strip():
         raise ValueError("Filename must not be blank")
 
+    category = normalize_metadata(category)
+    audience = normalize_metadata(audience)
     chunks, page_spans, embeddings = _prepare_chunks(
         content, mime_type, is_url=source_url is not None
     )
@@ -85,6 +90,8 @@ def ingest_document(
         content_hash=digest,
         source_type="url" if source_url is not None else "file",
         source_url=source_url,
+        category=category,
+        audience=audience,
         embedding_profile=current_embedding_profile(),
         chunking_profile=CHUNKING_PROFILE,
         file_versions=[file_version] if file_version is not None else [],

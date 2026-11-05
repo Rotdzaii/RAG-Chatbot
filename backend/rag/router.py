@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from langchain_google_genai._common import GoogleGenerativeAIError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
@@ -21,6 +21,7 @@ from rag.ocr import OCRFailed, OCRUnavailable
 from rag.models import Conversation, Message
 from rag.qa import answer_question
 from rag.query_processing import QueryProcessingError
+from rag.source_metadata import MetadataValue, RetrievalFilters
 from rag.progress import (
     QuestionCancelled, check_connected, current, message_id, notify, request_guard,
 )
@@ -37,6 +38,7 @@ class QuestionRequest(BaseModel):
     question: str
     top_k: int = Field(default=5, ge=1, le=20)
     conversation_id: UUID | None = None
+    filters: RetrievalFilters | None = None
 
     @field_validator("question")
     @classmethod
@@ -104,6 +106,7 @@ def answer_question_request(
                 session,
                 request.question,
                 top_k=request.top_k,
+                **({"filters": request.filters} if request.filters is not None else {}),
             )
         else:
             history = list_recent_owned_messages(
@@ -116,6 +119,7 @@ def answer_question_request(
                 request.question,
                 top_k=request.top_k,
                 history=history,
+                **({"filters": request.filters} if request.filters is not None else {}),
             )
         notify("validation")
         sources = [
@@ -224,6 +228,8 @@ def answer_question_request(
 )
 def upload_document(
     file: UploadFile | None = File(default=None),
+    category: Annotated[MetadataValue, Form()] = None,
+    audience: Annotated[MetadataValue, Form()] = None,
 ) -> dict[str, str | int]:
     if file is None or not file.filename or not file.filename.strip():
         raise HTTPException(status_code=400, detail="Filename is required")
@@ -238,7 +244,8 @@ def upload_document(
 
     session = SessionLocal()
     try:
-        document = ingest_document(session, file.filename, file.content_type, content)
+        metadata = {key: value for key, value in {"category": category, "audience": audience}.items() if value is not None}
+        document = ingest_document(session, file.filename, file.content_type, content, **metadata)
         return {
             "document_id": str(document.id),
             "filename": document.filename,
