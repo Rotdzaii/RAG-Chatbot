@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from rag.retrieval import retrieve_chunks
 from rag.progress import notify
+from rag.source_metadata import RetrievalFilters
 
 
 class SQLAlchemyVectorRetriever(BaseRetriever):
@@ -13,6 +14,7 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
 
     session: Session
     top_k: int = Field(default=5, ge=1, le=20)
+    filters: RetrievalFilters | None = None
 
     def _get_relevant_documents(
         self,
@@ -21,7 +23,10 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
         run_manager: CallbackManagerForRetrieverRun,
     ) -> list[Document]:
         notify("retrieval")
-        chunks = retrieve_chunks(self.session, query, top_k=self.top_k)
+        chunks = retrieve_chunks(
+            self.session, query, top_k=self.top_k,
+            **({"filters": self.filters} if self.filters is not None else {}),
+        )
         return [
             Document(
                 page_content=chunk.content,

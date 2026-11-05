@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from rag.embeddings import embed_query
 from rag.index_provenance import BASELINE_EMBEDDING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document
+from rag.source_metadata import RetrievalFilters
 
 
 MAX_COSINE_DISTANCE = 0.30
@@ -28,24 +29,27 @@ class RetrievedChunk:
 
 
 def retrieve_chunks(
-    session: Session, query: str, top_k: int = 5
+    session: Session, query: str, top_k: int = 5, *, filters: RetrievalFilters | None = None,
 ) -> list[RetrievedChunk]:
-    return _retrieve(session, query, top_k=top_k, max_distance=MAX_COSINE_DISTANCE)
+    return _retrieve(session, query, top_k=top_k, max_distance=MAX_COSINE_DISTANCE,
+                     **({"filters": filters} if filters is not None else {}))
 
 
 def retrieve_candidates(
-    session: Session, query: str, top_k: int = 20
+    session: Session, query: str, top_k: int = 20, *, filters: RetrievalFilters | None = None,
 ) -> list[RetrievedChunk]:
     """Read the nearest candidates for evaluation without a distance cutoff.
 
     Uses the same embedding and document profile policy as production retrieval.
     This does not change the production retrieval threshold.
     """
-    return _retrieve(session, query, top_k=top_k, max_distance=None)
+    return _retrieve(session, query, top_k=top_k, max_distance=None,
+                     **({"filters": filters} if filters is not None else {}))
 
 
 def _retrieve(
-    session: Session, query: str, *, top_k: int, max_distance: float | None
+    session: Session, query: str, *, top_k: int, max_distance: float | None,
+    filters: RetrievalFilters | None = None,
 ) -> list[RetrievedChunk]:
     if not query.strip():
         raise ValueError("Query must not be blank")
@@ -81,6 +85,9 @@ def _retrieve(
         .where(Document.is_active.is_(True))
         .where(compatible_profile)
     )
+    if filters is not None:
+        for key, value in filters.model_dump(exclude_none=True).items():
+            statement = statement.where(getattr(Document, key) == value)
     if max_distance is not None:
         statement = statement.where(cosine_distance <= max_distance)
     statement = statement.order_by(cosine_distance).limit(top_k)

@@ -25,7 +25,9 @@ async def stream_question(request: ProgressQuestionRequest,
     user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
 ) -> StreamingResponse:
     payload = QuestionRequest.model_validate(request.model_dump(exclude={"request_id"}))
-    fingerprint = sha256(payload.model_dump_json().encode()).hexdigest()
+    # Preserve fingerprints from requests made before metadata filters existed.
+    empty_filters = payload.filters is None or not payload.filters.model_dump(exclude_none=True)
+    fingerprint = sha256(payload.model_dump_json(exclude={"filters"} if empty_filters else set()).encode()).hexdigest()
 
     async def events():
         loop = asyncio.get_running_loop()

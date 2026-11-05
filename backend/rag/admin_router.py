@@ -1,5 +1,5 @@
 from datetime import date, datetime, timezone
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
@@ -14,6 +14,7 @@ from rag.ingestion import ingest_document
 from rag.ocr import OCRFailed, OCRUnavailable
 from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
 from rag.models import Document, SourceChangeNotification
+from rag.source_metadata import MetadataFilter, SourceMetadata, SourceMetadataPatch
 from rag.source_lifecycle import (
     SourceChanged,
     SourceNotFound,
@@ -66,7 +67,7 @@ class KnowledgeSourceResponse(BaseModel):
     offset: int
 
 
-class URLSourceRequest(BaseModel):
+class URLSourceRequest(SourceMetadata):
     model_config = ConfigDict(extra="forbid")
 
     url: str = Field(min_length=1, max_length=2048)
@@ -139,6 +140,7 @@ def upload_url_source(request: URLSourceRequest) -> dict[str, str | int]:
             fetched.mime_type,
             fetched.content,
             source_url=fetched.url,
+            **request.model_dump(include={"category", "audience"}, exclude_none=True),
         )
         return {
             "document_id": str(document.id),
@@ -246,8 +248,8 @@ def delete_knowledge_source(source_id: UUID) -> None:
 @router.get("/knowledge-sources", response_model=KnowledgeSourceResponse)
 def get_knowledge_sources(
     source_type: Literal["file", "url"] | None = Query(default=None),
-    category: str | None = Query(default=None),
-    audience: str | None = Query(default=None),
+    category: Annotated[MetadataFilter, Query()] = None,
+    audience: Annotated[MetadataFilter, Query()] = None,
     is_active: bool | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
@@ -391,5 +393,35 @@ def patch_source_status(source_id: UUID, request: SourceStatusPatch) -> SourceSt
     except SQLAlchemyError as error:
         session.rollback()
         raise HTTPException(status_code=503, detail="Source status update is unavailable") from error
+    finally:
+        session.close()
+
+
+class SourceMetadataResponse(BaseModel):
+    id: UUID
+    category: str | None
+    audience: str | None
+    updated_at: datetime
+
+
+@router.patch("/knowledge-sources/{source_id}/metadata", response_model=SourceMetadataResponse)
+def patch_source_metadata(source_id: UUID, request: SourceMetadataPatch) -> SourceMetadataResponse:
+    session = SessionLocal()
+    try:
+        source = session.scalar(select(Document).where(Document.id == source_id).with_for_update())
+        if source is None:
+            raise HTTPException(status_code=404, detail="Knowledge source not found")
+        for key, value in request.model_dump(exclude_unset=True).items():
+            setattr(source, key, value)
+        source.updated_at = datetime.now(timezone.utc)
+        response = SourceMetadataResponse(
+            id=source.id, category=source.category, audience=source.audience,
+            updated_at=source.updated_at,
+        )
+        session.commit()
+        return response
+    except SQLAlchemyError as error:
+        session.rollback()
+        raise HTTPException(status_code=503, detail="Source metadata update is unavailable") from error
     finally:
         session.close()

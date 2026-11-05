@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
 from rag.provider_errors import wrap_rate_limit_error
 from rag.progress import notify
+from rag.source_metadata import RetrievalFilters
 
 
 MODEL = "gemini-3.8-flash"
@@ -112,8 +113,12 @@ def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
     ).with_config(run_name="generate_grounded_answer", tags=["rag", "generation"])
 
 
-def build_rag_pipeline(session: Session, top_k: int = 5) -> Runnable:
-    retriever = SQLAlchemyVectorRetriever(session=session, top_k=top_k).with_config(
+def build_rag_pipeline(
+    session: Session, top_k: int = 5, *, filters: RetrievalFilters | None = None,
+) -> Runnable:
+    retriever = SQLAlchemyVectorRetriever(
+        session=session, top_k=top_k, **({"filters": filters} if filters is not None else {})
+    ).with_config(
         run_name="retrieve_relevant_chunks",
         tags=["rag", "retrieval"],
     )

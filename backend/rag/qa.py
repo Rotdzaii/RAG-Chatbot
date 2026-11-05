@@ -11,6 +11,7 @@ from rag.query_processing import process_query
 from rag.retrieval import RetrievedChunk
 from rag.tracing import LangChainTraceHandler
 from rag.progress import notify
+from rag.source_metadata import RetrievalFilters
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,6 +33,7 @@ def answer_question(
     top_k: int = 5,
     *,
     history: Sequence[HistoryMessage] = (),
+    filters: RetrievalFilters | None = None,
 ) -> QuestionAnswer:
     from config import settings
 
@@ -54,7 +56,9 @@ def answer_question(
     if query_result.standalone_query is None:
         raise ValueError("Search result is missing a standalone query")
 
-    pipeline = build_rag_pipeline(session, top_k=top_k)
+    pipeline = build_rag_pipeline(
+        session, top_k=top_k, **({"filters": filters} if filters is not None else {})
+    )
     pipeline_input = {"question": query_result.standalone_query}
     if getattr(settings, "rag_trace_enabled", False):
         result = pipeline.invoke(

@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from rag.models import Chunk, Document
+from rag.source_metadata import normalize_filter
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,6 +99,8 @@ def list_knowledge_sources(
     limit: int = 20,
     offset: int = 0,
 ) -> KnowledgeSourcePage:
+    category = normalize_filter(category)
+    audience = normalize_filter(audience)
     filters = []
     if is_active is not None:
         filters.append(Document.is_active.is_(is_active))
