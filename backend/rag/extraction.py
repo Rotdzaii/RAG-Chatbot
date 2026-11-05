@@ -6,6 +6,8 @@ from tempfile import NamedTemporaryFile
 from langchain_community.document_loaders import PyPDFLoader
 from pypdf.errors import PdfReadError
 
+from rag.ocr import ocr_empty_pages
+
 
 @dataclass(frozen=True, slots=True)
 class PageSpan:
@@ -71,6 +73,8 @@ def _extract_pdf_content(content: bytes) -> ExtractedContent:
         ).load()
 
         page_texts = [document.page_content for document in documents]
+        if any(not text.strip() for text in page_texts):
+            page_texts = ocr_empty_pages(temporary_path, page_texts)
         raw_text = "\n\n".join(page_texts)
         text_start = len(raw_text) - len(raw_text.lstrip())
         text_end = len(raw_text.rstrip())

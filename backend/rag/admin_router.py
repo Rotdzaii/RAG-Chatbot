@@ -11,6 +11,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from auth import require_admin
 from database import SessionLocal
 from rag.ingestion import ingest_document
+from rag.ocr import OCRFailed, OCRUnavailable
 from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
 from rag.models import Document
 from rag.source_lifecycle import (
@@ -86,6 +87,8 @@ def _replacement_response(result: object) -> SourceMutationResponse:
 
 
 def _mutation_error(error: Exception) -> HTTPException:
+    if isinstance(error, (OCRUnavailable, OCRFailed)):
+        return HTTPException(status_code=503, detail=str(error))
     if isinstance(error, SourceNotFound):
         return HTTPException(status_code=404, detail="Knowledge source not found")
     if isinstance(error, SourceTypeMismatch):
@@ -141,6 +144,8 @@ def upload_url_source(request: URLSourceRequest) -> dict[str, str | int]:
             "filename": document.filename,
             "chunk_count": len(document.chunks),
         }
+    except (OCRUnavailable, OCRFailed) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except IntegrityError as error:
         raise HTTPException(status_code=409, detail="Source URL already exists") from error
     except ValueError as error:
