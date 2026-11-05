@@ -1,6 +1,6 @@
 from uuid import UUID
 
-from pydantic import SecretStr
+from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -11,6 +11,8 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_publishable_key: SecretStr | None = None
     admin_user_id: UUID | None = None
+    rag_tesseract_cmd: str = "tesseract"
+    rag_ocr_timeout_seconds: float = Field(default=60, gt=0)
 
     model_config = SettingsConfigDict(env_file=".env")
 

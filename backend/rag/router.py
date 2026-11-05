@@ -16,6 +16,7 @@ from rag.conversations import (
     update_owned_conversation,
 )
 from rag.ingestion import ingest_document
+from rag.ocr import OCRFailed, OCRUnavailable
 from rag.models import Conversation, Message
 from rag.qa import answer_question
 from rag.query_processing import QueryProcessingError
@@ -207,6 +208,8 @@ def upload_document(
             "filename": document.filename,
             "chunk_count": len(document.chunks),
         }
+    except (OCRUnavailable, OCRFailed) as error:
+        raise HTTPException(status_code=503, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
     except SQLAlchemyError as error:

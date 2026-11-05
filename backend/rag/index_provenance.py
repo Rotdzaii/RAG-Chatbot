@@ -9,7 +9,7 @@ from rag.embeddings import MODEL, OUTPUT_DIMENSIONALITY
 
 
 BASELINE_EMBEDDING_PROFILE = "gemini-embedding-001:768:l2:v1"
-CHUNKING_PROFILE = "fixed-character-window:1000:150:v1"
+CHUNKING_PROFILE = "fixed-character-window:1000:150:v2:pdf-ocr-vie-eng"
 
 
 def current_embedding_profile() -> str:
