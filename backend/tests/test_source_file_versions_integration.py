@@ -203,7 +203,7 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
     def test_migration_keeps_parent_and_generates_postgresql_foreign_key_ddl_offline(self):
         backend = Path(__file__).resolve().parents[1]
         graph = ScriptDirectory(str(backend / "migrations"))
-        self.assertEqual(graph.get_heads(), ["c2a1e8d4f6b0"])
+        self.assertEqual(graph.get_heads(), ["a7e3c9d1b502"])
         self.assertEqual(graph.get_revision("c2a1e8d4f6b0").down_revision, "f9d4b2c7e501")
         migration = runpy.run_path(str(backend / "migrations/versions/c2a1e8d4f6b0_add_source_file_versions.py"))
         output = StringIO()

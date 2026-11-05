@@ -196,7 +196,7 @@ class SourceChangeCLITests(unittest.TestCase):
     def test_notification_revision_extends_single_current_head(self) -> None:
         migration_dir = Path(__file__).resolve().parents[1] / "migrations"
         graph = ScriptDirectory(str(migration_dir))
-        self.assertEqual(graph.get_heads(), ["c2a1e8d4f6b0"])
+        self.assertEqual(graph.get_heads(), ["a7e3c9d1b502"])
         self.assertEqual(graph.get_revision("c2a1e8d4f6b0").down_revision, "f9d4b2c7e501")
         self.assertEqual(
             graph.get_revision("f9d4b2c7e501").down_revision,

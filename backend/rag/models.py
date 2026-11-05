@@ -44,6 +44,9 @@ class Document(Base):
         String(4), default="file", server_default=text("'file'"), nullable=False
     )
     source_url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
+    is_active: Mapped[bool] = mapped_column(
+        Boolean, default=True, server_default=text("true"), nullable=False
+    )
     category: Mapped[str | None] = mapped_column(String, nullable=True)
     audience: Mapped[str | None] = mapped_column(String, nullable=True)
     content_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)

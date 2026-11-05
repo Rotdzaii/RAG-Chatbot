@@ -78,6 +78,7 @@ def _retrieve(
         )
         .join(Document, Chunk.document_id == Document.id)
         .where(Chunk.embedding.is_not(None))
+        .where(Document.is_active.is_(True))
         .where(compatible_profile)
     )
     if max_distance is not None:

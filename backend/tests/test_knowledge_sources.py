@@ -25,6 +25,7 @@ def source_row(filename: str, chunk_count: int) -> dict[str, object]:
     timestamp = datetime(2026, 9, 24, 8, 30, tzinfo=timezone.utc)
     return {
         "id": uuid4(),
+        "is_active": True,
         "filename": filename,
         "mime_type": "application/pdf",
         "source_type": "file",

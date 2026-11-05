@@ -79,6 +79,7 @@ class KnowledgeSourceApiTests(unittest.TestCase):
             source_type=None,
             category=None,
             audience=None,
+            is_active=None,
             limit=20,
             offset=0,
         )
@@ -224,6 +225,7 @@ class KnowledgeSourceApiTests(unittest.TestCase):
             source_type="file",
             category="rules",
             audience="staff",
+            is_active=None,
             limit=8,
             offset=6,
         )
