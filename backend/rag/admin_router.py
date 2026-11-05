@@ -4,7 +4,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from langchain_google_genai._common import GoogleGenerativeAIError
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
@@ -56,6 +56,7 @@ class KnowledgeSourceItem(BaseModel):
     created_at: datetime
     updated_at: datetime
     chunk_count: int
+    is_active: bool
 
 
 class KnowledgeSourceResponse(BaseModel):
@@ -247,6 +248,7 @@ def get_knowledge_sources(
     source_type: Literal["file", "url"] | None = Query(default=None),
     category: str | None = Query(default=None),
     audience: str | None = Query(default=None),
+    is_active: bool | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> KnowledgeSourceResponse:
@@ -257,6 +259,7 @@ def get_knowledge_sources(
             source_type=source_type,
             category=category,
             audience=audience,
+            is_active=is_active,
             limit=limit,
             offset=offset,
         )
@@ -357,5 +360,36 @@ def mark_source_change_notification_read(notification_id: UUID) -> SourceChangeN
     except SQLAlchemyError as error:
         session.rollback()
         raise HTTPException(status_code=503, detail="Notifications are unavailable") from error
+    finally:
+        session.close()
+
+
+class SourceStatusPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    is_active: StrictBool
+
+
+class SourceStatusResponse(BaseModel):
+    id: UUID
+    is_active: bool
+    updated_at: datetime
+
+
+@router.patch("/knowledge-sources/{source_id}/status", response_model=SourceStatusResponse)
+def patch_source_status(source_id: UUID, request: SourceStatusPatch) -> SourceStatusResponse:
+    session = SessionLocal()
+    try:
+        source = session.scalar(select(Document).where(Document.id == source_id).with_for_update())
+        if source is None:
+            raise HTTPException(status_code=404, detail="Knowledge source not found")
+        if source.is_active != request.is_active:
+            source.is_active = request.is_active
+            source.updated_at = datetime.now(timezone.utc)
+        response = SourceStatusResponse(id=source.id, is_active=source.is_active, updated_at=source.updated_at)
+        session.commit()
+        return response
+    except SQLAlchemyError as error:
+        session.rollback()
+        raise HTTPException(status_code=503, detail="Source status update is unavailable") from error
     finally:
         session.close()

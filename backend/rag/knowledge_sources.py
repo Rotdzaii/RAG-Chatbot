@@ -27,6 +27,7 @@ class KnowledgeSourceRecord:
     created_at: datetime
     updated_at: datetime
     chunk_count: int
+    is_active: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -52,6 +53,7 @@ def _knowledge_source_statement():
         Document.mime_type,
         Document.source_type,
         Document.source_url,
+        Document.is_active,
         Document.category,
         Document.audience,
         Document.content_hash,
@@ -82,6 +84,7 @@ def _map_knowledge_source(row: Mapping[str, Any]) -> KnowledgeSourceRecord:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
         chunk_count=int(row["chunk_count"]),
+        is_active=row["is_active"],
     )
 
 
@@ -91,10 +94,13 @@ def list_knowledge_sources(
     source_type: str | None = None,
     category: str | None = None,
     audience: str | None = None,
+    is_active: bool | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> KnowledgeSourcePage:
     filters = []
+    if is_active is not None:
+        filters.append(Document.is_active.is_(is_active))
     if source_type is not None:
         filters.append(Document.source_type == source_type)
     if category is not None:
