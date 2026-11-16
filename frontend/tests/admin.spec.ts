@@ -246,51 +246,23 @@ test('guest redirected, nonadmin forbidden and expired session can log in again'
   }
 })
 
-test('returning to chat preserves existing authenticated chat and history UI', async ({ page }) => {
+test('admin opening chat is redirected before chat or history mount, including after token refresh', async ({ page }) => {
   const mock = await fixture(page)
-  await page.goto('/admin/sources')
-  await page.getByRole('link', { name: 'Về trò chuyện', exact: true }).click()
-  await expect(page).toHaveURL(/\/chat$/)
-  await expect(page.getByRole('heading', { name: 'Bạn cần tìm thông tin gì tại Văn Lang?' })).toBeVisible()
-  await expect(page.getByRole('complementary', { name: 'Lịch sử trò chuyện', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Cuộc trò chuyện mới', exact: true })).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Gửi câu hỏi' })).toBeDisabled()
-  expect(mock.requests.some(request => new URL(request.url()).pathname === '/conversations')).toBe(true)
-  await expect(page.getByRole('link', { name: 'Mở trang quản trị' })).toBeVisible()
+  let release!: () => void
+  mock.holdPermission(new Promise<void>(resolve => { release = resolve }))
+  await page.goto('/chat')
+  await expect(page.getByText('Đang xác nhận quyền truy cập…', { exact: true })).toBeVisible()
+  await expect(page.getByRole('textbox', { name: 'Câu hỏi của bạn' })).toHaveCount(0)
+  expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/conversations'))).toBe(false)
+  release()
+  await expect(page).toHaveURL(/\/admin\/sources$/)
   await mock.refreshSession()
-  await expect(page.getByRole('link', { name: 'Mở trang quản trị' })).toBeVisible()
-  await expect(page).toHaveURL(/\/chat$/)
-  await page.getByRole('link', { name: 'Mở trang quản trị' }).click()
   await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
+  await page.goto('/chat')
+  await expect(page).toHaveURL(/\/admin\/sources$/)
+  expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/conversations') || new URL(request.url()).pathname.startsWith('/questions'))).toBe(false)
 })
 
-test('API mock: admin can open history and submit an SSE follow-up after returning to chat', async ({ page }) => {
-  await fixture(page)
-  const conversation = { id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', title: 'Hội thoại đã lưu', is_pinned: false, created_at: file.created_at, updated_at: file.updated_at }
-  const source = { citation: 1, chunk_id: 'chunk-1', document_id: file.id, filename: 'legacy.txt', chunk_index: 0, cosine_distance: .1 }
-  await page.route('**/conversations', route => route.fulfill({ json: [conversation] }))
-  await page.route('**/conversations/*/messages', route => route.fulfill({ json: [
-    { id: 'user-old', conversation_id: conversation.id, role: 'user', content: 'Câu hỏi cũ', citations: null, created_at: file.created_at },
-    { id: 'answer-old', conversation_id: conversation.id, role: 'assistant', content: 'Trả lời cũ [1].', citations: [source], created_at: file.created_at },
-  ] }))
-  await page.route('**/questions/stream', route => {
-    expect(route.request().headers().authorization).toMatch(/^Bearer /)
-    const body = route.request().postDataJSON()
-    expect(body.conversation_id).toBe(conversation.id)
-    expect(body.question).toBe('Hỏi tiếp')
-    return route.fulfill({ contentType: 'text/event-stream', body: `event: result\ndata: ${JSON.stringify({ request_id: body.request_id, response: { answer: 'Trả lời tiếp [1].', sources: [source], conversation_id: conversation.id } })}\n\n` })
-  })
-  await page.goto('/admin')
-  await page.getByRole('link', { name: 'Về trò chuyện', exact: true }).click()
-  await page.getByRole('button', { name: conversation.title, exact: true }).click()
-  await expect(page.locator('.chat-turn')).toHaveCount(1)
-  await expect(page.getByText('Trả lời cũ [1].', { exact: true })).toBeVisible()
-  await page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true }).fill('Hỏi tiếp')
-  await page.getByRole('button', { name: 'Gửi câu hỏi', exact: true }).click()
-  await expect(page.locator('.chat-turn')).toHaveCount(2)
-  await expect(page.getByText('Trả lời tiếp [1].', { exact: true })).toBeVisible()
-  await expect(page.getByRole('link', { name: 'Mở trang quản trị', exact: true })).toBeVisible()
-})
 
 test('API mock: admin and ordinary chat user can retry logout and cannot reopen protected content', async ({ browser }) => {
   for (const denied of [0, 403]) {
@@ -307,7 +279,7 @@ test('API mock: admin and ordinary chat user can retry logout and cannot reopen 
     await expect(page.getByRole('alert')).toContainText('Không thể đăng xuất.')
     await expect(page.getByRole('button', { name: 'Đăng xuất', exact: true })).toBeEnabled()
     await page.getByRole('button', { name: 'Đăng xuất', exact: true }).click()
-    await expect(page).toHaveURL(/\/login$/)
+    await expect(page).toHaveURL(/\/$/)
     expect(await page.evaluate(() => localStorage.getItem('sb-127-auth-token'))).toBeNull()
     await page.goto('http://127.0.0.1:5178/admin')
     await expect(page).toHaveURL(/\/login$/)
@@ -353,7 +325,7 @@ test('permission network and 5xx errors stay on login with retry instead of assu
   }
 })
 
-test('default route resolves role but explicit chat return route is preserved', async ({ browser }) => {
+test('default route resolves role and admin login overrides an explicit chat return route', async ({ browser }) => {
   for (const denied of [0, 403]) {
     const page = await browser.newPage()
     await fixture(page, { denied })
@@ -366,13 +338,89 @@ test('default route resolves role but explicit chat return route is preserved', 
   await page.goto('http://127.0.0.1:5178/chat')
   await expect(page).toHaveURL(/\/login$/)
   await signIn(page)
-  await expect(page).toHaveURL(/\/chat$/)
-  await expect(page.getByRole('link', { name: 'Mở trang quản trị' })).toBeVisible()
+  await expect(page).toHaveURL(/\/admin\/sources$/)
+  await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
   await page.reload()
-  await expect(page.getByRole('link', { name: 'Mở trang quản trị' })).toBeVisible()
-  await expect(page).toHaveURL(/\/chat$/)
+  await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
+  await expect(page).toHaveURL(/\/admin\/sources$/)
   await page.close()
 })
+
+for (const width of [1440, 390]) {
+  test(`Home draft login routes admin to sources, hides chat links and logout clears draft at ${width}px`, async ({ page }) => {
+    const mock = await fixture(page, { auth: false })
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/')
+    await page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true }).fill('Câu nháp trước khi đăng nhập Admin')
+    await page.getByRole('button', { name: 'Đăng nhập để gửi', exact: true }).click()
+    await page.getByRole('button', { name: 'Tiếp tục bằng email', exact: true }).click()
+    await signIn(page)
+    await expect(page).toHaveURL(/\/admin\/sources$/)
+    await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Về trò chuyện', exact: true })).toHaveCount(0)
+    if (width === 390) {
+      await page.getByRole('button', { name: 'Mở điều hướng', exact: true }).click()
+      await expect(page.getByRole('dialog').getByRole('link', { name: 'Về trò chuyện', exact: true })).toHaveCount(0)
+    }
+    await page.getByRole('button', { name: 'Đăng xuất', exact: true }).filter({ visible: true }).click()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true })).toHaveValue('')
+    expect(await page.evaluate(() => sessionStorage.getItem('vlu.pending-chat-question'))).toBeNull()
+    await page.reload()
+    await expect(page).toHaveURL(/\/$/)
+    await expect(page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true })).toHaveValue('')
+    expect(mock.requests.some(request => /^\/(conversations|questions)(\/|$)/.test(new URL(request.url()).pathname))).toBe(false)
+  })
+}
+
+for (const width of [1440, 390]) {
+  test(`Google callback routes Admin by backend permission before mounting chat at ${width}px`, async ({ page }) => {
+    const mock = await fixture(page, { auth: false })
+    await page.setViewportSize({ width, height: 844 })
+    await page.goto('/')
+    await page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true }).fill('Câu nháp Google của Admin')
+    await page.getByRole('button', { name: 'Đăng nhập để gửi', exact: true }).click()
+    expect(mock.oauthRequests).toHaveLength(0)
+    await page.getByRole('button', { name: 'Tiếp tục bằng Google', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/sources$/)
+    await expect(page.getByRole('heading', { name: 'Quản lý nguồn', exact: true })).toBeVisible()
+    await expect(page.getByRole('dialog', { name: 'Đăng nhập hoặc đăng ký', exact: true })).toHaveCount(0)
+    expect(mock.oauthRequests).toHaveLength(1)
+    expect(mock.requests.some(request => /^\/(questions|conversations)(\/|$)/.test(new URL(request.url()).pathname))).toBe(false)
+  })
+
+  test(`authenticated User and Admin never see the Home login prompt at ${width}px`, async ({ browser }) => {
+    for (const denied of [0, 403]) {
+      const page = await browser.newPage({ viewport: { width, height: 844 } })
+      const mock = await fixture(page, { denied })
+      await page.goto('http://127.0.0.1:5178/')
+      await expect(page).toHaveURL(denied ? /\/chat$/ : /\/admin\/sources$/)
+      await expect(page.getByRole('heading', { name: denied ? 'Bạn cần tìm thông tin gì tại Văn Lang?' : 'Quản lý nguồn', exact: true })).toBeVisible()
+      await expect(page.getByRole('dialog', { name: 'Đăng nhập hoặc đăng ký', exact: true })).toHaveCount(0)
+      expect(mock.oauthRequests).toHaveLength(0)
+      await page.close()
+    }
+  })
+}
+
+for (const failure of [503, 'network', 401] as const) {
+  test(`direct chat blocks mount on permission ${failure} and can recover`, async ({ page }) => {
+    const mock = await fixture(page)
+    mock.failPermission(failure)
+    await page.goto('/chat')
+    await expect(page.getByRole('heading', { name: failure === 401 ? 'Phiên đăng nhập đã hết hạn' : 'Chưa thể xác nhận quyền truy cập' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true })).toHaveCount(0)
+    expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/conversations'))).toBe(false)
+    mock.failPermission(0)
+    if (failure === 401) {
+      await page.getByRole('button', { name: 'Đăng nhập lại', exact: true }).click()
+      await expect(page).toHaveURL(/\/login$/)
+      await signIn(page)
+    } else await page.getByRole('button', { name: 'Thử lại', exact: true }).click()
+    await expect(page).toHaveURL(/\/admin\/sources$/)
+    expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/conversations'))).toBe(false)
+  })
+}
 
 test('API mock: viewport sidebar, sticky add, pagination and reference screenshots', async ({ page }) => {
   const errors: string[] = []
@@ -434,7 +482,7 @@ test('API mock: viewport sidebar, sticky add, pagination and reference screensho
 })
 
 test('API mock: Chat sidebar and mobile drawer keep account footer visible with long history', async ({ page }) => {
-  await fixture(page, { many: true })
+  await fixture(page, { many: true, denied: 403 })
   await page.goto('/chat')
   await expect(page.getByRole('complementary', { name: 'Lịch sử trò chuyện', exact: true })).toBeVisible()
   await expect(page.locator('.history-sidebar .conversation-select')).toHaveCount(60)

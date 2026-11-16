@@ -11,6 +11,7 @@ type ChatComposerProps = {
   onSubmit: () => void
   helperText?: string | null
   describedBy?: string
+  submitLabel?: string
   onSpeechTranscript: (conversationId: string, transcript: string) => void
 }
 
@@ -23,6 +24,7 @@ export function ChatComposer({
   onSubmit,
   helperText,
   describedBy,
+  submitLabel,
   onSpeechTranscript,
 }: ChatComposerProps) {
   const visibleHelperText = helperText === undefined
@@ -91,7 +93,8 @@ export function ChatComposer({
             </svg>
           )}
         </button>
-        <button type="submit" className="send-button" aria-label="Gửi câu hỏi" disabled={isPending || !draft.trim()}>
+        <button type="submit" className={submitLabel ? 'send-button send-button--labeled' : 'send-button'} aria-label={submitLabel ?? 'Gửi câu hỏi'} disabled={isPending || !draft.trim()}>
+          {submitLabel && <span>{submitLabel}</span>}
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.7" aria-hidden="true">
             <path d="M10 15V5m-4 4 4-4 4 4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
