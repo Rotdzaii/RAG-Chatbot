@@ -66,7 +66,8 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
       const category = url.searchParams.get('category')?.normalize('NFC').trim().replace(/\s+/g, ' ')
       const audience = url.searchParams.get('audience')?.normalize('NFC').trim().replace(/\s+/g, ' ')
       const active = url.searchParams.get('is_active')
-      const filtered = sources.filter(item => (active == null || item.is_active === (active === 'true')) && (!type || item.source_type === type) && (category == null || item.category === category) && (audience == null || item.audience === audience))
+      const filename = url.searchParams.get('filename')?.trim().toLocaleLowerCase('vi') ?? ''
+      const filtered = sources.filter(item => (!filename || item.filename.toLocaleLowerCase('vi').includes(filename)) && (active == null || item.is_active === (active === 'true')) && (!type || item.source_type === type) && (category == null || item.category === category) && (audience == null || item.audience === audience))
       const offset = Number(url.searchParams.get('offset'))
       const limit = Number(url.searchParams.get('limit'))
       await route.fulfill({ json: { items: filtered.slice(offset, offset + limit), total: filtered.length, limit, offset } }); return
