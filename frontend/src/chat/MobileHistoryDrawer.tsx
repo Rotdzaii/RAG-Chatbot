@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react'
 import vluLogo from '../assets/vlu-logo.svg'
 import { AccountControl } from '../auth/AccountControl'
 import { ConversationList } from './ConversationList'
+import { ConversationSearchButton } from './ConversationSearchButton'
+import { NewConversationIcon } from './NewConversationIcon'
 import type { Conversation } from './types'
 
 type MobileHistoryDrawerProps = {
@@ -12,6 +14,7 @@ type MobileHistoryDrawerProps = {
   isHistoryLoading: boolean
   historyError?: string
   onClose: () => void
+  onSearch: () => void
   onCreate: () => void
   onRetryHistory: () => void
   onSelect: (conversationId: string) => void
@@ -25,6 +28,7 @@ export function MobileHistoryDrawer({
   isHistoryLoading,
   historyError,
   onClose,
+  onSearch,
   onCreate,
   onRetryHistory,
   onSelect,
@@ -47,6 +51,8 @@ export function MobileHistoryDrawer({
       if (event.matches) onClose()
     }
     const handleKeyDown = (event: KeyboardEvent) => {
+      // A search dialog can sit above the drawer; its keyboard events belong to it.
+      if (!(event.target instanceof Node) || !drawer.current?.contains(event.target)) return
       if (event.key === 'Escape') {
         onClose()
         return
@@ -106,15 +112,16 @@ export function MobileHistoryDrawer({
           </button>
         </div>
 
-        <button className="new-conversation-button" type="button" onClick={() => {
-          onCreate()
-          onClose()
-        }}>
-          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-            <path d="M10 4v12M4 10h12" strokeLinecap="round" />
-          </svg>
-          <span>Cuộc trò chuyện mới</span>
-        </button>
+        <div className="history-sidebar__actions">
+          <button className="new-conversation-button" type="button" onClick={() => {
+            onCreate()
+            onClose()
+          }}>
+            <NewConversationIcon />
+            <span>Cuộc trò chuyện mới</span>
+          </button>
+          <ConversationSearchButton showLabel onClick={onSearch} />
+        </div>
 
         <ConversationList
           conversations={conversations}

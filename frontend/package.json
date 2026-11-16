@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:chat": "playwright test tests/chat-progress.spec.ts tests/guest-chat.spec.ts",
+    "test:chat": "playwright test tests/chat-progress.spec.ts tests/guest-chat.spec.ts tests/conversation-search.spec.ts",
     "test:source-files": "playwright test tests/source-files.spec.ts",
     "test:admin": "playwright test tests/admin.spec.ts"
   },

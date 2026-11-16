@@ -189,7 +189,7 @@ export function CurrentConversationToolbar({
   return (
     <>
       <div className="conversation-toolbar" ref={toolbar} aria-label="Thao tác cuộc trò chuyện hiện tại">
-        <button ref={shareTrigger} className="conversation-toolbar__share" type="button" disabled={!hasShareableContent} title={hasShareableContent ? 'Chia sẻ cuộc trò chuyện' : 'Chưa có nội dung để chia sẻ'} onClick={() => setIsShareOpen(true)}>
+        <button ref={shareTrigger} className="conversation-toolbar__share" type="button" aria-label="Chia sẻ cuộc trò chuyện" disabled={!hasShareableContent} title={hasShareableContent ? 'Chia sẻ cuộc trò chuyện' : 'Chưa có nội dung để chia sẻ'} onClick={() => setIsShareOpen(true)}>
           <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
             <path d="M10 12.2V3.5M6.8 6.7 10 3.5l3.2 3.2" strokeLinecap="round" strokeLinejoin="round" />
             <path d="M4.2 10.4v4.1c0 1.1.9 2 2 2h7.6c1.1 0 2-.9 2-2v-4.1" strokeLinecap="round" strokeLinejoin="round" />
@@ -197,7 +197,7 @@ export function CurrentConversationToolbar({
           <span>Chia sẻ</span>
         </button>
 
-        <button ref={menuTrigger} className="conversation-toolbar__menu-trigger" type="button" aria-label="Mở menu cuộc trò chuyện" aria-haspopup="menu" aria-expanded={isMenuOpen} onClick={() => setIsMenuOpen((open) => !open)}>
+        <button ref={menuTrigger} className="conversation-toolbar__menu-trigger" type="button" title="Menu cuộc trò chuyện" aria-label="Mở menu cuộc trò chuyện" aria-haspopup="menu" aria-expanded={isMenuOpen} onClick={() => setIsMenuOpen((open) => !open)}>
           <svg viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <circle cx="4" cy="10" r="1.4" /><circle cx="10" cy="10" r="1.4" /><circle cx="16" cy="10" r="1.4" />
           </svg>

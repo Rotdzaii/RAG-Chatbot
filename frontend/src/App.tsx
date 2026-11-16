@@ -19,6 +19,8 @@ import { CurrentConversationToolbar } from './chat/CurrentConversationToolbar'
 import { MobileHistoryDrawer } from './chat/MobileHistoryDrawer'
 import { ReferenceSourcesPanel } from './chat/ReferenceSourcesPanel'
 import { SuggestedQuestions } from './chat/SuggestedQuestions'
+import { ConversationSearchDialog } from './chat/ConversationSearchDialog'
+import { SidebarIcon } from './chat/SidebarIcon'
 import {
   applyConversationMetadata,
   createConversation,
@@ -76,6 +78,7 @@ function App() {
   const [pendingRequest, setPendingRequest] = useState<PendingRequest | null>(null)
   const [revealingTurn, setRevealingTurn] = useState<{ conversationId: string; turnId: string } | null>(null)
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false)
+  const [searchOpen, setSearchOpen] = useState(false)
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false)
   const [referencePanelOpen, setReferencePanelOpen] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(true)
@@ -513,6 +516,7 @@ function App() {
         historyError={historyError}
         isCollapsed={sidebarCollapsed}
         onToggleCollapsed={() => setSidebarCollapsed((current) => !current)}
+        onSearch={() => setSearchOpen(true)}
         onCreate={createNew}
         onRetryHistory={() => void fetchHistory()}
         onSelect={selectConversation}
@@ -530,9 +534,7 @@ function App() {
               aria-controls="mobile-history-drawer"
               onClick={() => setMobileDrawerOpen(true)}
             >
-              <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
-                <path d="M3.5 5.5h13M3.5 10h13M3.5 14.5h13" strokeLinecap="round" />
-              </svg>
+              <SidebarIcon />
             </button>
             <a className="mobile-chat-header__brand" href="#conversation" aria-label="Đại học Văn Lang, về cuộc trò chuyện">
               <img src={vluLogo} alt="Đại học Văn Lang" width={116} height={36} />
@@ -633,10 +635,23 @@ function App() {
         isHistoryLoading={historyLoading}
         historyError={historyError}
         onClose={closeMobileDrawer}
+        onSearch={() => setSearchOpen(true)}
         onCreate={createNew}
         onRetryHistory={() => void fetchHistory()}
         onSelect={selectConversation}
       />
+      {searchOpen && <ConversationSearchDialog
+        conversations={persistedConversations}
+        isLoading={historyLoading}
+        loadError={historyError}
+        onRetry={() => void fetchHistory()}
+        onClose={() => setSearchOpen(false)}
+        onSelect={id => {
+          selectConversation(id)
+          setSearchOpen(false)
+          if (mobileDrawerOpen) window.requestAnimationFrame(() => mobileHistoryTriggerRef.current?.focus())
+        }}
+      />}
     </div>
   )
 }

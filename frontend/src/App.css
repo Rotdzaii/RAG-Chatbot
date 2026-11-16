@@ -60,52 +60,74 @@ textarea:focus-visible,
 }
 
 .history-sidebar--collapsed {
-  width: 58px;
-  min-width: 58px;
+  width: 64px;
+  min-width: 64px;
   align-items: center;
+  cursor: pointer;
 }
 
 .history-sidebar__header {
   display: flex;
-  min-height: 42px;
+  min-height: 44px;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   padding: 0 2px;
 }
 
 .history-sidebar__brand {
   display: inline-flex;
   min-width: 0;
+  flex: 1;
   align-items: center;
   border-radius: 7px;
 }
 
 .history-sidebar__brand img {
   display: block;
-  width: 132px;
+  width: 112px;
   height: auto;
 }
 
 .history-sidebar__brand-mark {
-  display: grid;
-  width: 36px;
+  position: relative;
+  display: block;
+  width: 32px;
   height: 36px;
-  place-items: center;
-  border-radius: 9px;
-  color: #fff;
-  background: var(--vlu-red);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.03em;
+  overflow: hidden;
+}
+
+/* Crop the existing VLU asset to its shield, preserving the official mark. */
+.history-sidebar__brand-mark img {
+  position: absolute;
+  top: -3px;
+  left: -3px;
+  width: 138px;
+  max-width: none;
+  height: 42px;
+}
+
+.history-sidebar__collapse--brand { position: relative; }
+.history-sidebar__toggle-icon { position: absolute; inset: 0; display: grid; place-items: center; opacity: 0; }
+.history-sidebar__collapse--brand:hover .history-sidebar__brand-mark,
+.history-sidebar__collapse--brand:focus-visible .history-sidebar__brand-mark { opacity: 0; }
+.history-sidebar__collapse--brand:hover .history-sidebar__toggle-icon,
+.history-sidebar__collapse--brand:focus-visible .history-sidebar__toggle-icon { opacity: 1; }
+
+.history-sidebar__actions {
+  display: grid;
+  width: 100%;
+  flex: 0 0 auto;
+  gap: 4px;
 }
 
 .history-sidebar__collapse,
+.history-search-button,
 .history-drawer__close,
 .mobile-history-trigger {
   display: inline-grid;
-  width: 36px;
-  height: 36px;
+  width: 44px;
+  height: 44px;
   flex: 0 0 auto;
   place-items: center;
   border: 1px solid transparent;
@@ -116,6 +138,7 @@ textarea:focus-visible,
 }
 
 .history-sidebar__collapse:hover,
+.history-search-button:hover,
 .history-drawer__close:hover,
 .mobile-history-trigger:hover {
   color: var(--vlu-navy);
@@ -123,21 +146,24 @@ textarea:focus-visible,
 }
 
 .history-sidebar__collapse svg,
+.history-search-button svg,
 .history-drawer__close svg,
 .mobile-history-trigger svg {
-  width: 19px;
-  height: 19px;
+  width: 22px;
+  height: 22px;
 }
 
 .history-sidebar--collapsed .history-sidebar__header {
-  flex-direction: column;
-  min-height: auto;
+  width: 44px;
+  padding: 0;
 }
+
+.history-sidebar--collapsed .history-sidebar__actions { justify-items: center; }
 
 .new-conversation-button {
   display: flex;
   width: 100%;
-  min-height: 40px;
+  min-height: 44px;
   align-items: center;
   justify-content: flex-start;
   gap: 10px;
@@ -157,17 +183,30 @@ textarea:focus-visible,
 }
 
 .new-conversation-button svg {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   flex: 0 0 auto;
   color: var(--vlu-red);
 }
 
 .history-sidebar--collapsed .new-conversation-button {
-  width: 40px;
+  width: 44px;
   padding: 0;
   justify-content: center;
 }
+
+.history-search-button--labeled {
+  display: flex;
+  width: 100%;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+  color: var(--vlu-navy);
+  font-size: 13px;
+  font-weight: 650;
+  text-align: left;
+}
+.history-search-button--labeled svg { flex: 0 0 auto; }
 
 .conversation-list {
   min-height: 0;
@@ -420,14 +459,16 @@ textarea:focus-visible,
   display: flex;
   margin-left: auto;
   align-items: center;
-  gap: 5px;
+  flex: 0 0 auto;
+  gap: 8px;
 }
 
 .conversation-toolbar__share,
 .conversation-toolbar__menu-trigger,
 .conversation-toolbar__sources {
   display: inline-flex;
-  height: 36px;
+  height: 44px;
+  min-width: 44px;
   align-items: center;
   justify-content: center;
   border: 1px solid transparent;
@@ -446,7 +487,7 @@ textarea:focus-visible,
 
 .conversation-toolbar__menu-trigger,
 .conversation-toolbar__sources {
-  width: 36px;
+  width: 44px;
   padding: 0;
 }
 
@@ -464,15 +505,15 @@ textarea:focus-visible,
   opacity: 0.48;
 }
 
-.conversation-toolbar__share svg { width: 19px; height: 19px; }
-.conversation-toolbar__menu-trigger svg { width: 18px; height: 18px; }
-.conversation-toolbar__sources svg { width: 19px; height: 19px; }
+.conversation-toolbar__share svg,
+.conversation-toolbar__menu-trigger svg,
+.conversation-toolbar__sources svg { width: 22px; height: 22px; flex: 0 0 auto; }
 .conversation-toolbar__sources--active { border-color: #d2cdc7; color: var(--vlu-red); }
 
 .conversation-action-menu {
   position: absolute;
   top: calc(100% + 6px);
-  right: 41px;
+  right: 52px;
   width: 184px;
   padding: 5px;
   border: 1px solid #dedbd7;
@@ -506,8 +547,8 @@ textarea:focus-visible,
 
 .mobile-chat-header {
   display: flex;
-  min-height: 58px;
-  flex: 0 0 58px;
+  min-height: 64px;
+  flex: 0 0 64px;
   align-items: center;
   padding: 10px 20px;
 }
@@ -1212,6 +1253,49 @@ textarea:focus-visible,
 .chat-dialog__actions button:disabled { cursor: not-allowed; opacity: 0.46; }
 
 /* Mobile history drawer */
+.conversation-search-dialog {
+  width: min(540px, calc(100% - 32px));
+  max-height: calc(100dvh - 32px);
+  margin: auto;
+  padding: 20px;
+  overflow-y: auto;
+  border: 1px solid #dedbd7;
+  border-radius: 18px;
+  color: var(--vlu-navy);
+  background: #f8f7f4;
+  box-shadow: 0 20px 70px #1f225126;
+}
+.conversation-search-dialog::backdrop { background: #1f22514d; }
+.conversation-search-dialog__header { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: -4px -4px 12px 0; }
+.conversation-search-dialog h2 { margin: 0; font-size: 20px; font-weight: 650; letter-spacing: -0.025em; }
+.conversation-search-dialog input {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid #d5d3d0;
+  border-radius: 10px;
+  color: var(--vlu-navy);
+  background: #fff;
+}
+.conversation-search-dialog__results { max-height: min(380px, 50dvh); margin-top: 16px; overflow-y: auto; padding: 4px; }
+.conversation-search-dialog__results p { margin: 0 0 12px; color: #596174; font-size: 13px; line-height: 1.5; }
+.conversation-search-dialog ul { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+.conversation-search-dialog li button {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  color: var(--vlu-navy);
+  background: transparent;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: left;
+  overflow-wrap: anywhere;
+}
+.conversation-search-dialog li button:hover { border-color: #dedbd7; background: #fff; }
+
 .history-drawer-layer { position: fixed; z-index: 100; inset: 0; }
 
 .history-drawer__overlay {
@@ -1247,18 +1331,20 @@ textarea:focus-visible,
 .history-drawer__header {
   display: flex;
   min-height: 54px;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 4px;
   padding: 0 2px;
 }
 
 .history-drawer__logo { display: block; width: 108px; height: auto; }
+.history-drawer__header > div { flex: 1; min-width: 0; }
 .history-drawer__title { margin: 4px 0 0; color: #697080; font-size: 10.5px; font-weight: 650; }
 .history-drawer__footer .account-email { display: block; }
 
 .mobile-history-trigger:focus-visible,
 .history-sidebar__collapse:focus-visible,
+.history-search-button:focus-visible,
 .history-drawer__close:focus-visible,
 .new-conversation-button:focus-visible,
 .conversation-select:focus-visible,
@@ -1283,8 +1369,8 @@ textarea:focus-visible,
   .history-sidebar { display: none; }
 
   .mobile-chat-header {
-    min-height: 60px;
-    flex: 0 0 60px;
+    min-height: 64px;
+    flex: 0 0 64px;
     align-items: center;
     justify-content: space-between;
     gap: 8px;
@@ -1349,7 +1435,9 @@ textarea:focus-visible,
 
 @media (max-width: 600px) {
   .mobile-chat-header { padding-inline: 12px; }
-  .conversation-toolbar__share { width: 36px; padding: 0; }
+  .mobile-chat-header__leading { gap: 6px; }
+  .mobile-chat-header__brand img { width: clamp(80px, 22vw, 112px); }
+  .conversation-toolbar__share { width: 44px; padding: 0; }
   .conversation-toolbar__share span { display: none; }
   .conversation { width: calc(100% - 24px); }
   .empty-chat { transform: translateY(-6dvh); }
