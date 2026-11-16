@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useAuth } from './useAuth'
 import { Link, useLocation } from 'react-router'
 import { useAdminAccess } from './useAdminAccess'
+import { clearPendingQuestion } from '../chat/pendingQuestion'
 
 export function AccountControl() {
   const { user, signOut } = useAuth()
@@ -23,6 +24,11 @@ export function AccountControl() {
 
       if (error) {
         setErrorMessage('Không thể đăng xuất. Vui lòng thử lại.')
+      } else {
+        clearPendingQuestion()
+        // Supabase may already have unmounted this control via the auth gate.
+        // A fresh guest page also releases every in-memory conversation draft.
+        window.location.replace('/')
       }
     } catch {
       setErrorMessage('Không thể đăng xuất. Vui lòng thử lại.')

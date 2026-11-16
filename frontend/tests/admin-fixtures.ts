@@ -19,18 +19,31 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
   let holdPermission: Promise<void> | undefined
   let permissionError: number | 'network' = 0
   let nextSession = session
+  let oauthOutcome: 'success' | 'cancel' | 'error' = 'success'
+  const oauthRequests: Request[] = []
   const validTokens = new Set([token])
   await page.addInitScript(({ session, authenticated }) => {
     if (authenticated && !sessionStorage.getItem('admin-fixture-seeded')) {
       localStorage.setItem('sb-127-auth-token', JSON.stringify(session))
-      sessionStorage.setItem('admin-fixture-seeded', 'true')
     }
+    sessionStorage.setItem('admin-fixture-seeded', 'true')
   }, { session, authenticated: options.auth !== false })
   await page.route('**/*', async route => {
     const request = route.request()
     const url = new URL(request.url())
     if (url.origin === 'http://127.0.0.1:5178') { await route.continue(); return }
     if (url.origin === 'http://127.0.0.1:48081') {
+      if (url.pathname === '/auth/v1/authorize') {
+        oauthRequests.push(request)
+        expect(url.searchParams.get('provider')).toBe('google')
+        expect(url.searchParams.get('redirect_to')).toBe('http://127.0.0.1:5178/login')
+        expect(url.searchParams.has('client_secret')).toBe(false)
+        const callback = new URL(url.searchParams.get('redirect_to')!)
+        callback.hash = oauthOutcome === 'success'
+          ? new URLSearchParams({ access_token: token, refresh_token: session.refresh_token, token_type: 'bearer', expires_in: '3600' }).toString()
+          : new URLSearchParams({ error: oauthOutcome === 'cancel' ? 'access_denied' : 'server_error', error_description: 'private provider detail' }).toString()
+        await route.fulfill({ status: 302, headers: { location: callback.href } }); return
+      }
       if (url.pathname.endsWith('/logout')) { await route.fulfill({ status: 204 }); return }
       await route.fulfill({ json: request.url().includes('/user') ? user : nextSession }); return
     }
@@ -115,6 +128,8 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
   })
   return {
     requests,
+    oauthRequests,
+    setOAuthOutcome: (outcome: 'success' | 'cancel' | 'error') => { oauthOutcome = outcome },
     failMutations: (status: number) => { mutationError = status },
     failLists: (status: number) => { listError = status },
     refreshStatus: (status: 'updated' | 'unchanged') => { refreshStatus = status },
@@ -138,4 +153,10 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
 
 
 
-export { fixture, file, urlSource }
+async function signIn(page: Page) {
+  await page.getByLabel('Email', { exact: true }).fill('account@example.test')
+  await page.getByLabel('Mật khẩu', { exact: true }).fill('fixture-password')
+  await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
+}
+
+export { fixture, file, urlSource, signIn }

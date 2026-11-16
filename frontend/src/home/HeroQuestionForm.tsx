@@ -1,70 +1,41 @@
-import { useRef, useState } from 'react'
-import type { FormEvent } from 'react'
-import { useNavigate } from 'react-router'
-import { useAuth } from '../auth/useAuth'
-import { storePendingQuestion } from '../chat/pendingQuestion'
+import { useRef } from 'react'
+import { ChatComposer } from '../chat/ChatComposer'
+import { SuggestedQuestions } from '../chat/SuggestedQuestions'
 
-const EMPTY_QUESTION_ERROR = 'Vui lòng nhập câu hỏi trước khi tiếp tục.'
-const STORAGE_ERROR = 'Không thể lưu câu hỏi trong phiên này. Vui lòng thử lại.'
+export function HeroQuestionForm({ question, onQuestionChange, onLogin }: {
+  question: string; onQuestionChange: (question: string) => void; onLogin: () => void
+}) {
+  const inputRef = useRef<HTMLTextAreaElement>(null)
 
-export function HeroQuestionForm() {
-  const { user } = useAuth()
-  const navigate = useNavigate()
-  const inputRef = useRef<HTMLInputElement>(null)
-  const [question, setQuestion] = useState('')
-  const [errorMessage, setErrorMessage] = useState('')
-
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmedQuestion = question.trim()
-
-    if (!trimmedQuestion) {
-      setErrorMessage(EMPTY_QUESTION_ERROR)
+  function handleSubmit() {
+    if (!question.trim()) {
       inputRef.current?.focus()
       return
     }
-
-    if (!storePendingQuestion(trimmedQuestion)) {
-      setErrorMessage(STORAGE_ERROR)
-      return
-    }
-
-    setErrorMessage('')
-
-    if (user) {
-      navigate('/chat')
-    } else {
-      navigate('/login', { state: { from: '/chat' } })
-    }
+    onLogin()
   }
 
   return (
-    <form className="hero-question" onSubmit={handleSubmit}>
-      <label className="home-visually-hidden" htmlFor="hero-question-input">Câu hỏi của bạn</label>
-      <input
-        id="hero-question-input"
-        ref={inputRef}
-        name="question"
-        type="text"
-        value={question}
-        placeholder="Ví dụ: Ngành Kỹ thuật Phần mềm học những môn nào?"
-        autoComplete="off"
-        aria-describedby={errorMessage ? 'hero-question-error' : 'hero-question-help'}
-        onChange={(event) => {
-          setQuestion(event.target.value)
-          if (errorMessage) setErrorMessage('')
-        }}
+    <div className="home-question">
+      <ChatComposer
+        draft={question}
+        conversationId="home-draft"
+        isPending={false}
+        inputRef={inputRef}
+        onDraftChange={onQuestionChange}
+        onSubmit={handleSubmit}
+        onSpeechTranscript={(_id, transcript) => onQuestionChange(`${question}${question.trim() ? ' ' : ''}${transcript.trim()}`)}
+        submitLabel="Đăng nhập để gửi"
+        helperText={null}
+        describedBy="home-question-help"
       />
-      <button type="submit" aria-label="Gửi câu hỏi và tiếp tục">
-        <span>Khám phá</span>
-        <svg viewBox="0 0 22 22" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
-          <path d="M5 11h12m-5-5 5 5-5 5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </button>
-      <span className="home-visually-hidden" id="hero-question-help">
-        Câu hỏi sẽ được chuyển sang trình trợ lý và không tự động gửi.
-      </span>
-      {errorMessage && <p className="hero-question__error" id="hero-question-error" role="alert">{errorMessage}</p>}
-    </form>
+      <SuggestedQuestions onSelect={(value) => {
+        onQuestionChange(value)
+        inputRef.current?.focus()
+      }} />
+      <p className="empty-chat__helper" id="home-question-help">
+        Đăng nhập để gửi câu hỏi. Câu nháp sẽ được giữ lại để bạn kiểm tra trước khi gửi.
+      </p>
+    </div>
   )
 }

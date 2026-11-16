@@ -53,6 +53,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const signOut = useCallback(() => supabase.auth.signOut({ scope: 'local' }), [])
 
+  const signInWithGoogle = useCallback(() => supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: `${window.location.origin}/login` },
+  }), [])
+
   const value = useMemo(() => ({
     session,
     user: session?.user ?? null,
@@ -60,7 +65,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     signIn,
     signUp,
     signOut,
-  }), [isLoading, session, signIn, signOut, signUp])
+    signInWithGoogle,
+  }), [isLoading, session, signIn, signOut, signUp, signInWithGoogle])
 
   return <AuthContext value={value}>{children}</AuthContext>
 }

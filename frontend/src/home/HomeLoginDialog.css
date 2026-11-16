@@ -1,0 +1,66 @@
+.home-login-dialog {
+  position: fixed;
+  width: min(440px, calc(100% - 32px));
+  max-height: calc(100svh - 32px);
+  margin: auto;
+  padding: 44px 32px 32px;
+  overflow-y: auto;
+  border: 1px solid #e3dfda;
+  border-radius: 22px;
+  color: var(--vlu-navy);
+  background: #fff;
+  box-shadow: 0 24px 90px #1f225129;
+  text-align: center;
+}
+.home-login-dialog::backdrop { background: #1f22514d; backdrop-filter: blur(5px); }
+.home-login-dialog__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  color: #676d7c;
+  background: transparent;
+  cursor: pointer;
+  font-size: 26px;
+  line-height: 1;
+}
+.home-login-dialog__close:hover { color: var(--vlu-navy); background: #f1efeb; }
+.home-login-dialog__logo { display: block; width: 144px; height: auto; margin: 0 auto 28px; }
+.home-login-dialog h2 { margin: 0; font-size: 26px; font-weight: 650; letter-spacing: -0.035em; line-height: 1.25; text-wrap: balance; }
+.home-login-dialog > p { margin: 12px auto 26px; max-width: 32ch; color: #676d7c; font-size: 14px; line-height: 1.6; }
+.home-login-dialog__actions { display: grid; gap: 10px; }
+.google-sign-in, .home-login-dialog__email {
+  display: flex;
+  width: 100%;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--vlu-red);
+  border-radius: 12px;
+  color: #fff;
+  background: var(--vlu-red);
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.5;
+}
+.google-sign-in svg { width: 20px; height: 20px; flex: 0 0 auto; }
+.google-sign-in:hover:not(:disabled) { border-color: #b91b2c; background: #b91b2c; }
+.google-sign-in:disabled { opacity: .65; cursor: wait; }
+.home-login-dialog__email { border-color: #d5d3d0; color: var(--vlu-navy); background: #fff; }
+.home-login-dialog__email:hover { border-color: var(--vlu-navy); background: #f8f7f4; }
+.login-google-options { display: grid; gap: 12px; margin-bottom: 24px; }
+.login-google-options > p { margin: 0; color: #676d7c; font-size: 13px; line-height: 1.6; }
+.login-google-options .login-message { color: #98283a; }
+@media (max-width: 480px) {
+  .home-login-dialog { padding: 44px 24px 28px; border-radius: 18px; }
+  .home-login-dialog h2 { font-size: 24px; }
+}

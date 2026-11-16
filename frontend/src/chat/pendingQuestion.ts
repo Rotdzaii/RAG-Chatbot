@@ -3,6 +3,14 @@ export const PENDING_QUESTION_STORAGE_KEY = 'vlu.pending-chat-question'
 
 let pendingQuestionDuringMount: string | undefined
 
+export function readPendingQuestion() {
+  try {
+    return window.sessionStorage.getItem(PENDING_QUESTION_STORAGE_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
 export function storePendingQuestion(question: string) {
   try {
     window.sessionStorage.setItem(PENDING_QUESTION_STORAGE_KEY, question)
@@ -29,4 +37,13 @@ export function consumePendingQuestion() {
 
 export function finishPendingQuestionConsumption() {
   pendingQuestionDuringMount = undefined
+}
+
+export function clearPendingQuestion() {
+  pendingQuestionDuringMount = undefined
+  try {
+    window.sessionStorage.removeItem(PENDING_QUESTION_STORAGE_KEY)
+  } catch {
+    // In-memory drafts are still cleared when storage is unavailable.
+  }
 }
