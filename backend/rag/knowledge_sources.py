@@ -96,12 +96,15 @@ def list_knowledge_sources(
     category: str | None = None,
     audience: str | None = None,
     is_active: bool | None = None,
+    filename: str | None = None,
     limit: int = 20,
     offset: int = 0,
 ) -> KnowledgeSourcePage:
     category = normalize_filter(category)
     audience = normalize_filter(audience)
     filters = []
+    if filename and filename.strip():
+        filters.append(Document.filename.icontains(filename.strip(), autoescape=True))
     if is_active is not None:
         filters.append(Document.is_active.is_(is_active))
     if source_type is not None:

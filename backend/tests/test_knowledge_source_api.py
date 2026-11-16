@@ -80,6 +80,7 @@ class KnowledgeSourceApiTests(unittest.TestCase):
             category=None,
             audience=None,
             is_active=None,
+            filename=None,
             limit=20,
             offset=0,
         )
@@ -214,6 +215,8 @@ class KnowledgeSourceApiTests(unittest.TestCase):
                     "source_type": "file",
                     "category": "rules",
                     "audience": "staff",
+                    "filename": " MaRkEtInG ",
+                    "is_active": "false",
                     "limit": 8,
                     "offset": 6,
                 },
@@ -225,7 +228,8 @@ class KnowledgeSourceApiTests(unittest.TestCase):
             source_type="file",
             category="rules",
             audience="staff",
-            is_active=None,
+            is_active=False,
+            filename=" MaRkEtInG ",
             limit=8,
             offset=6,
         )
@@ -237,6 +241,7 @@ class KnowledgeSourceApiTests(unittest.TestCase):
             "?limit=0",
             "?limit=101",
             "?offset=-1",
+            "?filename=" + "x" * 256,
         )
 
         with patch("rag.admin_router.SessionLocal") as session_local:

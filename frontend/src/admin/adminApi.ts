@@ -22,9 +22,10 @@ export async function getSource(token: string, id: string, signal?: AbortSignal)
   return (await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(id)}`, token, { signal })).json()
 }
 export type SourceMutation = { document_id: string; filename: string; chunk_count: number; status: 'updated' | 'unchanged' }
-export async function listSources(token: string, offset = 0, sourceType = '', signal?: AbortSignal, limit = 20, filters: SourceMetadataInput = {}, active = ''): Promise<SourcePage> {
+export async function listSources(token: string, offset = 0, sourceType = '', signal?: AbortSignal, limit = 20, filters: SourceMetadataInput = {}, active = '', filename = ''): Promise<SourcePage> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
   if (active) params.set('is_active', active)
+  if (filename.trim()) params.set('filename', filename.trim())
   if (sourceType) params.set('source_type', sourceType)
   if (filters.category != null) params.set('category', filters.category)
   if (filters.audience != null) params.set('audience', filters.audience)

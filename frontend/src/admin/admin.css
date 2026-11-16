@@ -81,6 +81,24 @@
 .admin-register__toolbar { display: flex; align-items: center; gap: 10px; padding: 15px 17px; border-bottom: 1px solid var(--admin-border); }
 .admin-register__toolbar h2 { flex: 1; margin: 0; font-size: 14px; font-weight: 650; }
 .admin-register__toolbar h2 span { color: var(--admin-muted); font-size: 12px; font-weight: 400; margin-left: 7px; }
+.admin-register__toolbar { flex-wrap: wrap; }
+.admin-source-search { display: flex; align-items: center; gap: 8px; width: min(310px, 100%); min-width: 0; padding-left: 11px; border: 1px solid var(--admin-border); border-radius: 8px; background: #fff; }
+.admin-source-search:focus-within { border-color: var(--vlu-red); box-shadow: 0 0 0 2px #d7213414; }
+.admin-source-search > svg { width: 18px; height: 18px; flex: 0 0 auto; color: var(--admin-muted); }
+.admin-source-search input { width: 100%; min-width: 0; min-height: 40px; padding: 8px 0; border: 0; color: var(--vlu-navy); background: transparent; font-size: 13px; }
+.admin-source-search input:focus-visible { outline: none; }
+.admin-source-search input::-webkit-search-cancel-button { display: none; }
+.admin-source-search__clear { width: 40px; height: 40px; flex: 0 0 40px; border: 0; border-radius: 7px; color: var(--admin-muted); background: transparent; font-size: 21px; cursor: pointer; }
+.admin-source-search__clear:hover:not(:disabled) { color: var(--vlu-red); background: #fff0f2; }
+.admin-source-search__clear:disabled { opacity: .35; cursor: default; }
+@media (max-width: 1000px) {
+  .admin-register__toolbar h2 { flex-basis: 100%; }
+  .admin-source-search { flex: 1; }
+}
+@media (max-width: 520px) {
+  .admin-source-search input { font-size: 16px; }
+  .admin-source-search { width: 100%; flex: 1 1 100%; }
+}
 .admin-filter-count { font-size: 11px; background: #fff0f2; color: var(--vlu-red); padding: 1px 5px; border-radius: 4px; }
 .admin-filter-chips { display: flex; flex-wrap: wrap; gap: 7px; padding: 12px 17px 0; }
 .admin-filter-chip { border: 1px solid var(--admin-border); background: #f5f6f9; color: var(--vlu-navy); border-radius: 20px; font-size: 12px; padding: 4px 9px; overflow-wrap: anywhere; max-width: 100%; }

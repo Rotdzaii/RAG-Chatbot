@@ -251,6 +251,7 @@ def get_knowledge_sources(
     category: Annotated[MetadataFilter, Query()] = None,
     audience: Annotated[MetadataFilter, Query()] = None,
     is_active: bool | None = Query(default=None),
+    filename: str | None = Query(default=None, max_length=255),
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> KnowledgeSourceResponse:
@@ -262,6 +263,7 @@ def get_knowledge_sources(
             category=category,
             audience=audience,
             is_active=is_active,
+            filename=filename,
             limit=limit,
             offset=offset,
         )

@@ -8,6 +8,7 @@ import type { SourceAction } from './SourceActions'
 import { deleteSource, getSource, importSourceURL, patchSourceStatus, listSources, patchSourceMetadata, refreshSourceURL, replaceSourceFile, sourceFile } from './adminApi'
 import type { KnowledgeSource } from './adminApi'
 import { useAdminMutation, useAdminResource } from './adminHooks'
+import { SourceSearch } from './SourceSearch'
 
 type Filters = SourceMetadataInput & { type: string; active: string }
 const emptyFilters: Filters = { type: '', active: '' }
@@ -15,6 +16,7 @@ type Dialog = { action: SourceAction; source: KnowledgeSource } | { action: 'add
 
 export function SourceManager({ token, onFailure }: { token: string; onFailure: (error: unknown) => void }) {
   const [offset, setOffset] = useState(0)
+  const [filename, setFilename] = useState('')
   const [filters, setFilters] = useState<Filters>(emptyFilters)
   const [draft, setDraft] = useState<Filters>(emptyFilters)
   const [filterExtraOpen, setFilterExtraOpen] = useState(false)
@@ -27,8 +29,8 @@ export function SourceManager({ token, onFailure }: { token: string; onFailure: 
   const [category, setCategory] = useState('')
   const [audience, setAudience] = useState('')
   const [editedMetadata, setEditedMetadata] = useState<SourceMetadataInput>({})
-  const load = useCallback((signal: AbortSignal) => listSources(token, offset, filters.type, signal, 20, { category: filters.category || undefined, audience: filters.audience || undefined }, filters.active), [token, offset, filters])
-  const page = useAdminResource(`${token}:${offset}:${revision}:${JSON.stringify(filters)}`, load, onFailure)
+  const load = useCallback((signal: AbortSignal) => listSources(token, offset, filters.type, signal, 20, { category: filters.category || undefined, audience: filters.audience || undefined }, filters.active, filename), [token, offset, filters, filename])
+  const page = useAdminResource(JSON.stringify([token, offset, revision, filters, filename]), load, onFailure)
   const mutation = useAdminMutation(onFailure)
   const reload = () => setRevision(value => value + 1)
   const close = () => { setDialog(undefined); setValidation('') }
@@ -77,11 +79,11 @@ export function SourceManager({ token, onFailure }: { token: string; onFailure: 
     {mutation.message && <p className="admin-feedback admin-feedback--success" role="status">{mutation.message}</p>}
     {mutation.error && !dialog && <p className="admin-feedback admin-feedback--error" role="alert">{mutation.error}</p>}
     <section className="admin-register" aria-label="Danh sách nguồn">
-      <div className="admin-register__toolbar"><h2>Kho tài liệu {page.data && <span>{page.data.total} nguồn</span>}</h2><button className="admin-button" disabled={mutation.pending} onClick={() => { setDraft({ ...filters }); setFilterExtraOpen(Boolean(filters.category || filters.audience)); open({ action: 'filters' }) }}>Bộ lọc{chips.length > 0 && <span className="admin-filter-count">{chips.length}</span>}</button><button className="admin-more-button" aria-label="Tải lại danh sách" title="Tải lại danh sách" disabled={mutation.pending || page.loading} onClick={reload}>↻</button></div>
+      <div className="admin-register__toolbar"><h2>Kho tài liệu {page.data && <span>{page.data.total} nguồn</span>}</h2><SourceSearch value={filename} disabled={mutation.pending} onChange={value => { setFilename(value); setOffset(0) }} /><button className="admin-button" disabled={mutation.pending} onClick={() => { setDraft({ ...filters }); setFilterExtraOpen(Boolean(filters.category || filters.audience)); open({ action: 'filters' }) }}>Bộ lọc{chips.length > 0 && <span className="admin-filter-count">{chips.length}</span>}</button><button className="admin-more-button" aria-label="Tải lại danh sách" title="Tải lại danh sách" disabled={mutation.pending || page.loading} onClick={reload}>↻</button></div>
       {chips.length > 0 && <div className="admin-filter-chips" aria-label="Điều kiện đang áp dụng">{chips.map(([key, label, value]) => <button className="admin-filter-chip" key={key} disabled={mutation.pending} aria-label={`Bỏ lọc ${label}`} onClick={() => { setFilters(current => ({ ...current, [key]: '' })); setOffset(0) }}>{label}: {value} <span aria-hidden="true">×</span></button>)}</div>}
       <div className="admin-source-columns" aria-hidden="true"><span>Tên tài liệu</span><span>Trạng thái</span><span>Cập nhật</span><span /></div>
       {page.loading ? <p className="admin-empty" role="status">Đang tải nguồn…</p> : page.error ? <div className="admin-empty"><p role="alert">{page.error}</p><button className="admin-button" onClick={reload}>Thử tải lại</button></div>
-        : !page.data?.items.length ? <div className="admin-empty"><h3>Chưa có nguồn trong danh sách này</h3><p>{chips.length ? 'Thử thay đổi hoặc xóa bộ lọc.' : 'Chọn + Thêm nguồn để tải PDF, TXT hoặc nhập URL VLU.'}</p></div>
+        : !page.data?.items.length ? <div className="admin-empty"><h3>Chưa có nguồn trong danh sách này</h3><p>{filename.trim() ? 'Thử từ khóa khác, xóa từ khóa hoặc thay đổi bộ lọc.' : chips.length ? 'Thử thay đổi hoặc xóa bộ lọc.' : 'Chọn + Thêm nguồn để tải PDF, TXT hoặc nhập URL VLU.'}</p></div>
           : <ul className="admin-source-list">{page.data.items.map(item => <li className="admin-source-row" key={item.id}>
             <div className="admin-source-name-cell"><span className={`admin-file-badge admin-file-badge--${item.source_type}`} aria-hidden="true">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'}</span><div className="admin-source-info"><h3><button className="admin-source-name" title={item.filename} onClick={() => action('details', item)}>{item.filename}</button></h3><p className="admin-source-meta">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'} · {item.chunk_count} đoạn tài liệu</p></div></div>
             <div className="admin-source-status-cell"><span className={`admin-source-status admin-source-status--${item.is_active ? 'active' : 'inactive'}`}>{item.is_active ? 'Đang bật' : 'Đã tắt'}</span></div><time className="admin-source-date" dateTime={item.updated_at}>{formatDate(item.updated_at, true)}</time><SourceActions source={item} busy={mutation.pending} onAction={action} />
@@ -97,7 +99,7 @@ export function SourceManager({ token, onFailure }: { token: string; onFailure: 
       </form> : dialog.action === 'add' ? <form onSubmit={addSource} aria-busy={mutation.pending}>
         <div className="admin-dialog-body"><fieldset disabled={mutation.pending}>
           <div className="admin-upload-tabs" role="tablist" aria-label="Cách thêm nguồn">{[['file', 'Tải tệp lên'], ['url', 'Nhập URL']].map(([value, label]) => <button type="button" role="tab" id={`source-tab-${value}`} key={value} aria-selected={mode === value} aria-controls="admin-upload-panel" onClick={() => { setMode(value); setValidation('') }}>{label}</button>)}</div><div id="admin-upload-panel" role="tabpanel" aria-labelledby={`source-tab-${mode}`}>
-            {mode === 'file' ? <label className="admin-file-input">Chọn tài liệu<span className="admin-file-picker"><input data-dialog-initial-focus type="file" aria-label="Chọn tài liệu" accept=".pdf,.txt,application/pdf,text/plain" onChange={event => { setFile(event.target.files?.[0]); setValidation('') }} aria-describedby="admin-file-help" /><span className="admin-file-picker__button" aria-hidden="true">Chọn file</span><span aria-hidden="true">{file?.name ?? 'Chưa chọn file'}</span></span><span id="admin-file-help">PDF hoặc TXT mã hóa UTF-8, tối đa 10 MiB.</span></label> : <label className="admin-field">Địa chỉ nguồn<input type="url" required placeholder="https://www.vlu.edu.vn/…" value={url} onChange={event => setURL(event.target.value)} /><span>Trang web, PDF hoặc TXT thuộc tên miền VLU.</span></label>}
+            {mode === 'file' ? <label className="admin-file-input">Chọn tài liệu<span className="admin-file-picker"><input data-dialog-initial-focus type="file" aria-label="Chọn tài liệu" accept=".pdf,.txt,application/pdf,text/plain" onChange={event => { setFile(event.target.files?.[0]); setValidation('') }} aria-describedby="admin-file-help admin-file-naming-help" /><span className="admin-file-picker__button" aria-hidden="true">Chọn file</span><span aria-hidden="true">{file?.name ?? 'Chưa chọn file'}</span></span><span id="admin-file-help">PDF hoặc TXT mã hóa UTF-8, tối đa 10 MiB.</span><span id="admin-file-naming-help">Gợi ý đặt tên: ky-thuat-phan-mem_k32_chuong-trinh-dao-tao.pdf (không bắt buộc).</span></label> : <label className="admin-field">Địa chỉ nguồn<input type="url" required placeholder="https://www.vlu.edu.vn/…" value={url} onChange={event => setURL(event.target.value)} /><span>Trang web, PDF hoặc TXT thuộc tên miền VLU.</span></label>}
           </div><details className="admin-optional-fields"><summary>Thông tin bổ sung <span>Không bắt buộc</span></summary><div className="admin-optional-grid"><label className="admin-field">Phân loại<input value={category} onChange={event => setCategory(event.target.value)} /></label><label className="admin-field">Đối tượng<input value={audience} onChange={event => setAudience(event.target.value)} /></label></div></details>{validation && <p className="admin-field-error" role="alert">{validation}</p>}
         </fieldset><MutationFeedback pending={mutation.pending} error={mutation.error} /></div><footer className="admin-dialog__actions"><button type="button" className="admin-button" disabled={mutation.pending} onClick={close}>Hủy</button><button type="submit" className="admin-button admin-button--primary" disabled={mutation.pending}>{mutation.pending ? 'Đang xử lý…' : 'Thêm nguồn'}</button></footer>
       </form> : dialog.action === 'details' && source ? <SourceDetails sourceId={source.id} token={token} onFailure={onFailure} onClose={close} /> : source && <form onSubmit={event => {

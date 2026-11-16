@@ -2,10 +2,13 @@ from __future__ import annotations
 
 import sys
 import unittest
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock
 from uuid import uuid4
+
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 
 fake_config = ModuleType("config")
@@ -19,6 +22,7 @@ from rag.knowledge_sources import (  # noqa: E402
     get_knowledge_source,
     list_knowledge_sources,
 )
+from rag.models import Chunk, Document  # noqa: E402
 
 
 def source_row(filename: str, chunk_count: int) -> dict[str, object]:
@@ -153,6 +157,66 @@ class KnowledgeSourceServiceTests(unittest.TestCase):
         self.assertIsNone(total_statement._offset_clause)
         self.assertEqual(page_statement._limit_clause.value, 7)
         self.assertEqual(page_statement._offset_clause.value, 3)
+
+
+class KnowledgeSourceFilenameSearchTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.engine = create_engine("sqlite://")
+        self.addCleanup(self.engine.dispose)
+        Document.__table__.create(self.engine)
+        Chunk.__table__.create(self.engine)
+        self.session = Session(self.engine)
+        self.addCleanup(self.session.close)
+        stamp = datetime(2026, 11, 16, tzinfo=timezone.utc)
+        rows = [
+            {"id": uuid4(), "filename": f"newer-{index}.pdf", "mime_type": "application/pdf", "source_type": "file", "created_at": stamp + timedelta(minutes=index), "updated_at": stamp, "is_active": True}
+            for index in range(25)
+        ]
+        self.target_id = uuid4()
+        rows.extend([
+            {"id": self.target_id, "filename": "CTDT_Software_2026.PDF", "mime_type": "application/pdf", "source_type": "file", "created_at": stamp - timedelta(days=1), "updated_at": stamp, "is_active": True, "category": "curriculum", "audience": "students"},
+            {"id": uuid4(), "filename": "ctdt_Software_2025.pdf", "mime_type": "application/pdf", "source_type": "file", "created_at": stamp - timedelta(days=2), "updated_at": stamp, "is_active": False, "category": "curriculum", "audience": "students"},
+            {"id": uuid4(), "filename": "CTDT_Software_staff.pdf", "mime_type": "application/pdf", "source_type": "file", "created_at": stamp - timedelta(days=3), "updated_at": stamp, "is_active": True, "category": "curriculum", "audience": "staff"},
+            {"id": uuid4(), "filename": "CTDT_Software_URL", "mime_type": "text/html", "source_type": "url", "created_at": stamp - timedelta(days=4), "updated_at": stamp, "is_active": True, "category": "curriculum", "audience": "students"},
+            {"id": uuid4(), "filename": "Report_100%.pdf", "mime_type": "application/pdf", "source_type": "file", "created_at": stamp, "updated_at": stamp, "is_active": True},
+        ])
+        # Core inserts avoid PostgreSQL-only UUID/time server defaults in SQLite.
+        for row in rows:
+            self.session.execute(Document.__table__.insert().values(**row))
+        self.session.commit()
+
+    def test_case_insensitive_partial_match_finds_a_later_page_file(self) -> None:
+        first = list_knowledge_sources(self.session, limit=20)
+        self.assertNotIn(self.target_id, [item.id for item in first.items])
+        matching = list_knowledge_sources(self.session, filename="  sOfTwArE_2026  ")
+        self.assertEqual(matching.total, 1)
+        self.assertEqual([item.id for item in matching.items], [self.target_id])
+
+    def test_combines_all_filters_before_counting_and_pagination(self) -> None:
+        filters = dict(filename="software", source_type="file", category="curriculum", audience="students")
+        first = list_knowledge_sources(self.session, **filters, limit=1)
+        second = list_knowledge_sources(self.session, **filters, limit=1, offset=1)
+        self.assertEqual(first.total, 2)
+        self.assertEqual(second.total, 2)
+        self.assertEqual(len(first.items), 1)
+        self.assertEqual(len(second.items), 1)
+        self.assertNotEqual(first.items[0].id, second.items[0].id)
+        active = list_knowledge_sources(self.session, **filters, is_active=True)
+        self.assertEqual(active.total, 1)
+        self.assertEqual(active.items[0].id, self.target_id)
+        self.assertEqual(list_knowledge_sources(self.session, **filters, is_active=True, offset=1).items, [])
+        self.assertEqual(list_knowledge_sources(self.session, filename="software", category="missing").total, 0)
+
+    def test_wildcards_are_literal_and_blank_search_is_unfiltered(self) -> None:
+        for query in ("100%", "Report_", "%"):
+            with self.subTest(query=query):
+                result = list_knowledge_sources(self.session, filename=query)
+                self.assertEqual(result.total, 1)
+                self.assertEqual(result.items[0].filename, "Report_100%.pdf")
+        for query in (None, "", "   "):
+            self.assertEqual(list_knowledge_sources(self.session, filename=query).total, 30)
+        self.assertEqual(list_knowledge_sources(self.session, filename="_").total, 5)
+        self.assertEqual(list_knowledge_sources(self.session, filename="no-match").total, 0)
 
 
 if __name__ == "__main__":
