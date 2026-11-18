@@ -5,6 +5,7 @@ from sqlalchemy.exc import SQLAlchemyError
 
 from database import engine
 from rag.admin_router import router as admin_router
+from rag.admin_statistics import router as admin_statistics_router
 from rag.conversation_router import router as conversation_router
 from rag.router import router as documents_router
 from rag.progress_router import router as progress_router
@@ -24,6 +25,7 @@ app.include_router(progress_router)
 app.include_router(source_file_router)
 app.include_router(conversation_router)
 app.include_router(admin_router)
+app.include_router(admin_statistics_router)
 
 
 @app.get("/health")

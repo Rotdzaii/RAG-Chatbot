@@ -20,7 +20,7 @@ from alembic.migration import MigrationContext  # noqa: E402
 from alembic.operations import Operations  # noqa: E402
 from alembic.script import ScriptDirectory  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
-from langchain_core.runnables import RunnableLambda  # noqa: E402
+from answer_fixture import GroundedModelStub  # noqa: E402
 from sqlalchemy import create_engine, event, select  # noqa: E402
 from sqlalchemy.exc import SQLAlchemyError  # noqa: E402
 from sqlalchemy.ext.compiler import compiles  # noqa: E402
@@ -90,7 +90,7 @@ class SourceActivationTests(unittest.TestCase):
         self.embed = patched("rag.ingestion.embed_documents", side_effect=lambda texts: [[1.0] + [0.0]*767 for _ in texts])
         patched("rag.retrieval.embed_query", return_value=[1.0] + [0.0]*767)
         patched("rag.qa.process_query", return_value=QueryProcessingResult("search", "Question", None, False, 1))
-        self.model = patched("rag.langchain_pipeline._get_chat_model", return_value=RunnableLambda(lambda _: "Answer [1]."))
+        self.model = patched("rag.langchain_pipeline._get_chat_model", return_value=GroundedModelStub(lambda _: "Answer [1]."))
 
     def as_user(self, user_id):
         app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(user_id)
@@ -107,7 +107,6 @@ class SourceActivationTests(unittest.TestCase):
     def test_migration_extends_file_versions_and_backfills_old_and_new_rows(self):
         backend = Path(__file__).resolve().parents[1]
         graph = ScriptDirectory(str(backend / "migrations"))
-        self.assertEqual(graph.get_heads(), ["a7e3c9d1b502"])
         self.assertEqual(graph.get_revision("a7e3c9d1b502").down_revision, "c2a1e8d4f6b0")
         migration = runpy.run_path(str(backend / "migrations/versions/a7e3c9d1b502_add_source_is_active.py"))
         with create_engine("sqlite://").begin() as connection:

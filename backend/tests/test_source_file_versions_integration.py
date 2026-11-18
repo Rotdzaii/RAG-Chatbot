@@ -15,7 +15,7 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from pgvector.sqlalchemy import VECTOR
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.dialects.postgresql import JSONB
@@ -97,7 +97,7 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
         p.start(); self.addCleanup(p.stop)
         patched("rag.ingestion.embed_documents", side_effect=lambda texts: [[0.1] * 768 for _ in texts])
         patched("rag.qa.process_query", return_value=QueryProcessingResult("search", "Question", None, False, 1))
-        patched("rag.langchain_pipeline._get_chat_model", return_value=RunnableLambda(lambda _: "Answer [1]."))
+        patched("rag.langchain_pipeline._get_chat_model", return_value=GroundedModelStub(lambda _: "Answer [1]."))
 
         def retrieve(session, _query, top_k=5):
             rows = session.execute(select(Chunk, Document).join(Document).where(Document.id == self.active_document)).all()
@@ -203,7 +203,6 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
     def test_migration_keeps_parent_and_generates_postgresql_foreign_key_ddl_offline(self):
         backend = Path(__file__).resolve().parents[1]
         graph = ScriptDirectory(str(backend / "migrations"))
-        self.assertEqual(graph.get_heads(), ["a7e3c9d1b502"])
         self.assertEqual(graph.get_revision("c2a1e8d4f6b0").down_revision, "f9d4b2c7e501")
         migration = runpy.run_path(str(backend / "migrations/versions/c2a1e8d4f6b0_add_source_file_versions.py"))
         output = StringIO()

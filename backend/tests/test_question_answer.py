@@ -51,6 +51,11 @@ class QuestionAnswerApiTests(unittest.TestCase):
             id=self.user_id
         )
         self.client = TestClient(app)
+        # This suite mocks the request session. Durable statistics are tested
+        # against isolated transactions in test_admin_statistics.
+        tracking = patch("rag.router.begin_turn", return_value=None)
+        tracking.start()
+        self.addCleanup(tracking.stop)
 
     def tearDown(self) -> None:
         app.dependency_overrides.clear()

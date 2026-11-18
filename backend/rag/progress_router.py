@@ -1,6 +1,5 @@
 """POST SSE: stage events and one committed, validated result, never draft text."""
 import asyncio
-from hashlib import sha256
 import json
 from threading import Event
 from typing import Annotated
@@ -11,7 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from auth import AuthenticatedUser, get_authenticated_user
 from rag.progress import ProgressContext, QuestionCancelled, current
-from rag.router import QuestionRequest, answer_question_request
+from rag.router import QuestionRequest, answer_question_request, question_fingerprint
 
 router = APIRouter()
 
@@ -25,9 +24,7 @@ async def stream_question(request: ProgressQuestionRequest,
     user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
 ) -> StreamingResponse:
     payload = QuestionRequest.model_validate(request.model_dump(exclude={"request_id"}))
-    # Preserve fingerprints from requests made before metadata filters existed.
-    empty_filters = payload.filters is None or not payload.filters.model_dump(exclude_none=True)
-    fingerprint = sha256(payload.model_dump_json(exclude={"filters"} if empty_filters else set()).encode()).hexdigest()
+    fingerprint = question_fingerprint(payload)
 
     async def events():
         loop = asyncio.get_running_loop()

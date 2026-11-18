@@ -16,14 +16,14 @@ fake_config.settings = SimpleNamespace(database_url="postgresql+psycopg://u:p@lo
 sys.modules.setdefault("config", fake_config)
 
 from fastapi.testclient import TestClient
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from auth import AuthenticatedUser, get_authenticated_user
 from main import app
-from rag.models import Conversation, Message
+from rag.models import Conversation, Message, QuestionTurn
 from rag.progress_router import ProgressQuestionRequest, stream_question
 from rag.query_contract import QueryProcessingResult
 from rag.retrieval import RetrievedChunk
@@ -47,6 +47,7 @@ class QuestionProgressTests(unittest.TestCase):
             connection.execute("PRAGMA foreign_keys=ON")
         Conversation.__table__.create(self.engine)
         Message.__table__.create(self.engine)
+        QuestionTurn.__table__.create(self.engine)
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
         self.user = uuid4()
         previous = app.dependency_overrides.copy()
@@ -62,7 +63,7 @@ class QuestionProgressTests(unittest.TestCase):
         self.chunk = RetrievedChunk(uuid4(), uuid4(), "fixture.txt", 0, "Evidence", .1)
         self.retrieval = patched("rag.langchain_retriever.retrieve_chunks", return_value=[self.chunk])
         self.answers = iter(["Validated answer [1]."])
-        self.model = patched("rag.langchain_pipeline._get_chat_model", return_value=RunnableLambda(lambda _prompt: next(self.answers)))
+        self.model = patched("rag.langchain_pipeline._get_chat_model", return_value=GroundedModelStub(lambda _prompt: next(self.answers)))
 
     def payload(self, **changes):
         return {"question": "Question", "request_id": str(uuid4()), **changes}
@@ -175,7 +176,7 @@ class QuestionProgressTests(unittest.TestCase):
             entered.set()
             release.wait(3)
             return "Answer [1]."
-        self.model.return_value = RunnableLambda(model)
+        self.model.return_value = GroundedModelStub(model)
         payload = self.payload()
         async def run():
             response = await stream_question(ProgressQuestionRequest(**payload), AuthenticatedUser(self.user))
@@ -191,7 +192,7 @@ class QuestionProgressTests(unittest.TestCase):
         with patch("rag.router.SessionLocal", side_effect=factory):
             asyncio.run(run())
         self.assertEqual(self.count(), 0)
-        self.model.return_value = RunnableLambda(lambda _: "Recovered [1].")
+        self.model.return_value = GroundedModelStub(lambda _: "Recovered [1].")
         self.assertEqual(self.stream(payload)[-1][0], "result")
         self.assertEqual(self.count(), 2)
 
@@ -202,7 +203,7 @@ class QuestionProgressTests(unittest.TestCase):
             entered.set()
             release.wait(3)
             return "One answer [1]."
-        self.model.return_value = RunnableLambda(model)
+        self.model.return_value = GroundedModelStub(model)
         payload = self.payload()
         with ThreadPoolExecutor(max_workers=2) as pool:
             first = pool.submit(self.stream, payload)

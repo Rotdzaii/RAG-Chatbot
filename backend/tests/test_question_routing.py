@@ -6,14 +6,14 @@ from unittest.mock import Mock, patch
 from uuid import UUID, uuid4
 
 from google.genai import errors, types
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from pydantic import SecretStr
 from sqlalchemy import select
 
 import test_source_activation as fixture
 from rag.external_answers import GENERAL_UNAVAILABLE, WEB_UNAVAILABLE
 from rag.conversations import GROUNDING_EXPIRED
-from rag.models import Chunk, Document, Message
+from rag.models import Chunk, Document, Message, QuestionTurn
 from rag.query_processing import process_query
 
 
@@ -27,6 +27,10 @@ def reply(text):
     return types.GenerateContentResponse(candidates=[
         types.Candidate(content=types.Content(parts=[types.Part(text=text)]))
     ])
+
+
+def general_reply(text):
+    return reply(json.dumps({"outcome": "answered", "answer": text}))
 
 
 def grounded(text=WEB_TEXT, supported=WEB_TEXT, url=WEB_URL, suggestions=SUGGESTIONS):
@@ -114,7 +118,7 @@ class QuestionRoutingTests(unittest.TestCase):
         self.sdk.assert_not_called()
 
         self.seed("Quy chế nghỉ học VLU.")
-        self.db.model.return_value = RunnableLambda(lambda _: "Một suy đoán không có trích dẫn.")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Một suy đoán không có trích dẫn.")
         result = self.ask(question)
         self.assertIn("Không có ngữ cảnh", result["answer"])
         self.assertNotIn("suy đoán", result["answer"])
@@ -122,7 +126,7 @@ class QuestionRoutingTests(unittest.TestCase):
     def test_internal_then_general_then_different_internal_major(self):
         self.seed("Ngành: Kiến trúc\nHọc phần: Đồ án")
         self.seed("Ngành: Ngôn ngữ Nhật\nHọc phần: Ngữ âm")
-        self.db.model.return_value = RunnableLambda(
+        self.db.model.return_value = GroundedModelStub(
             lambda prompt: "Ngữ âm [1]" if "Ngữ âm" in prompt.to_string() else "Đồ án [1]"
         )
         self.choose(internal="Kiến trúc học gì?", majors=("Kiến trúc",))
@@ -133,7 +137,7 @@ class QuestionRoutingTests(unittest.TestCase):
 
         question = "Vì sao bầu trời có màu xanh?"
         self.choose(routes=[("general", question)])
-        self.sdk.return_value = reply("Do ánh sáng bị tán xạ trong khí quyển.")
+        self.sdk.return_value = general_reply("Do ánh sáng bị tán xạ trong khí quyển.")
         general = self.ask(question, conversation_id=first["conversation_id"])
         self.assertIn("Kiến thức chung", general["answer"])
         self.assertEqual(general["sources"], [])
@@ -151,7 +155,7 @@ class QuestionRoutingTests(unittest.TestCase):
         self.seed("Quy định VLU: xin phép nghỉ học trước buổi học.")
         internal = "Quy định nghỉ học VLU"
         self.choose(internal=internal, routes=[("web", PUBLIC)])
-        self.db.model.return_value = RunnableLambda(lambda _: "Cần xin phép trước buổi học [1].")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Cần xin phép trước buổi học [1].")
         original = f"  {WEB_TEXT}\n"
         self.sdk.return_value = grounded(text=original, supported=original)
         payload = {"question": f"{internal} và {PUBLIC}", "request_id": str(uuid4())}
@@ -194,7 +198,7 @@ class QuestionRoutingTests(unittest.TestCase):
 
         followup = "Chuyện khác là gì?"
         self.choose(routes=[("general", followup)])
-        self.sdk.return_value = reply("Một câu trả lời chung.")
+        self.sdk.return_value = general_reply("Một câu trả lời chung.")
         self.ask(followup, conversation_id=result["conversation_id"])
         query_input = self.plan.call_args.args[0].to_string()
         self.assertIn(payload["question"], query_input)
@@ -217,7 +221,7 @@ class QuestionRoutingTests(unittest.TestCase):
     def test_history_and_replay_remove_legacy_grounding_from_storage(self):
         self.seed("Quy định VLU: xin phép nghỉ học trước buổi học.")
         self.choose(internal="Quy định nghỉ học VLU")
-        self.db.model.return_value = RunnableLambda(lambda _: "Nội bộ nguyên vẹn [1].")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Nội bộ nguyên vẹn [1].")
         for cleanup in ("history", "replay"):
             with self.subTest(cleanup=cleanup):
                 payload = {"question": "Quy định nghỉ học VLU", "request_id": str(uuid4())}
@@ -270,11 +274,11 @@ class QuestionRoutingTests(unittest.TestCase):
 
     def test_mixed_general_and_partial_clarification_keep_the_internal_section(self):
         self.seed("Quy định VLU: xin phép trước khi nghỉ học.")
-        self.db.model.return_value = RunnableLambda(lambda _: "Hãy xin phép trước [1].")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Hãy xin phép trước [1].")
         internal = "Quy định nghỉ học VLU"
         question = "Vì sao bầu trời xanh?"
         self.choose(internal=internal, routes=[("general", question)])
-        self.sdk.return_value = reply("Do tán xạ ánh sáng.")
+        self.sdk.return_value = general_reply("Do tán xạ ánh sáng.")
         result = self.ask(f"{internal} và {question}")
         self.assertIn("Hãy xin phép trước [1]", result["answer"])
         self.assertIn("Kiến thức chung", result["answer"])
@@ -299,6 +303,28 @@ class QuestionRoutingTests(unittest.TestCase):
         self.choose(routes=[("web", internal)])
         self.assertIn("Không có ngữ cảnh", self.ask(internal)["answer"])
         self.sdk.assert_not_called()
+
+    def test_search_disabled_provider_failure_and_missing_grounding_have_distinct_outcomes(self):
+        self.choose(routes=[("web", PUBLIC)])
+        disabled_id, error_id, no_evidence_id = uuid4(), uuid4(), uuid4()
+        with patch.object(fixture.settings, "rag_google_search_enabled", False):
+            self.ask(PUBLIC, request_id=str(disabled_id))
+        self.sdk.assert_not_called()
+        self.sdk.side_effect = errors.ServerError(503, {"error": {"message": "unlogged private error"}})
+        self.ask(PUBLIC, request_id=str(error_id))
+        self.sdk.side_effect = None
+        self.sdk.return_value = reply("Unverifiable weather.")
+        self.ask(PUBLIC, request_id=str(no_evidence_id))
+        with self.db.sessions() as session:
+            for request_id, outcome, executed, reason in (
+                (disabled_id, "unavailable", [], "search_disabled"),
+                (error_id, "error", ["web"], "provider_error"),
+                (no_evidence_id, "insufficient_evidence", ["web"], "missing_grounding"),
+            ):
+                with self.subTest(outcome=outcome):
+                    turn = session.get(QuestionTurn, (self.db.admin, request_id))
+                    self.assertEqual((turn.outcome, turn.planned_routes, turn.executed_routes, turn.reasons),
+                                     (outcome, ["web"], executed, [reason]))
 
     def test_general_provider_failure_and_planner_failure_do_not_change_route(self):
         question = "Vì sao trời xanh?"

@@ -26,6 +26,7 @@ class CitationRouterTests(unittest.TestCase):
         session = Mock()
         with (
             patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.begin_turn", return_value=None),
             patch("rag.router.answer_question", side_effect=ValueError("invalid citation")),
         ):
             with self.assertRaises(HTTPException) as raised:
@@ -51,6 +52,7 @@ class CitationRouterTests(unittest.TestCase):
         )
         with (
             patch("rag.router.SessionLocal", return_value=session),
+            patch("rag.router.begin_turn", return_value=None),
             patch("rag.router.answer_question", return_value=result),
         ):
             response = answer_question_request(
