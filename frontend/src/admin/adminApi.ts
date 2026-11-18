@@ -69,13 +69,13 @@ export function adminError(error: unknown): string {
   if (error instanceof ApiNetworkError) return 'Không kết nối được máy chủ. Kiểm tra kết nối rồi thử lại.'
   if (error instanceof ApiRequestError) {
     const messages: Record<number, string> = {
-      400: 'Dữ liệu chưa hợp lệ. Kiểm tra tài liệu hoặc địa chỉ URL.',
-      404: 'Nguồn không còn tồn tại. Hãy tải lại danh sách.',
-      409: 'Nguồn đã tồn tại hoặc vừa được thay đổi. Hãy tải lại danh sách trước khi thử lại.',
-      413: 'Nguồn vượt giới hạn 10 MiB. Hãy chọn tài liệu nhỏ hơn.',
+      400: 'Dữ liệu chưa hợp lệ. Kiểm tra tài liệu hoặc địa chỉ liên kết.',
+      404: 'Tài liệu không còn tồn tại. Hãy tải lại danh sách.',
+      409: 'Tài liệu đã tồn tại hoặc vừa được thay đổi. Hãy tải lại danh sách trước khi thử lại.',
+      413: 'Tài liệu vượt giới hạn 10 MiB. Hãy chọn tài liệu nhỏ hơn.',
       415: 'Định dạng không được hỗ trợ. Hãy dùng PDF, TXT hoặc trang web VLU có nội dung văn bản.',
-      422: 'Không đọc được nội dung hợp lệ. Kiểm tra tài liệu, mã hóa UTF-8 của TXT hoặc URL.',
-      502: 'Không tải được nguồn URL. Kiểm tra địa chỉ và thử lại sau.',
+      422: 'Không đọc được nội dung hợp lệ. Kiểm tra tài liệu, mã hóa UTF-8 của TXT hoặc liên kết.',
+      502: 'Không tải được tài liệu từ liên kết. Kiểm tra địa chỉ và thử lại sau.',
       503: 'Dịch vụ tạm thời chưa sẵn sàng. Hãy thử lại sau.',
     }
     return messages[error.status] ?? 'Thao tác chưa hoàn tất. Hãy tải lại danh sách để kiểm tra trước khi thử lại.'
