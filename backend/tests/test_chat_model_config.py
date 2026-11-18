@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
@@ -55,7 +55,7 @@ class ChatModelConfigTests(unittest.TestCase):
         query_provider.with_structured_output.return_value.invoke.return_value = (
             QueryDecision(action="search", standalone_query="Offline question")
         )
-        generation_provider = RunnableLambda(lambda _: AIMessage(content="Offline answer [1]"))
+        generation_provider = GroundedModelStub(lambda _: AIMessage(content="Offline answer [1]"))
         chunk = RetrievedChunk(
             chunk_id=uuid4(), document_id=uuid4(), filename="offline.txt",
             chunk_index=0, content="Offline context", cosine_distance=0.1,

@@ -13,6 +13,7 @@ from rag.langchain_retriever import SQLAlchemyVectorRetriever
 from rag.major_catalog import MajorCatalog, major_key
 from rag.qa_diagnostics import QuestionDiagnostics, observe_search
 from rag.query_contract import MajorQuery
+from rag.question_outcomes import Outcome, Resolution, combine_resolutions
 from rag.source_metadata import RetrievalFilters
 
 
@@ -61,11 +62,15 @@ def _eligible_passages(hits: list[Document], criterion: str | None, question: st
     return eligible
 
 
-def _checked_cell(answer: str, allowed: set[int], last: int) -> str:
+def _checked_cell(answer: str, resolution: Resolution, allowed: set[int], last: int) -> tuple[str, Resolution]:
+    if resolution.outcome == Outcome.INSUFFICIENT:
+        return _MISSING, resolution
     cited = cited_source_indices(answer, last)
     if not allowed.issuperset(cited):
         raise ValueError("Generated answer references a citation outside its major or criterion")
-    return answer.strip() if cited else _MISSING
+    if not cited:
+        return _MISSING, Resolution(Outcome.ERROR, ("unverified_answer",))
+    return answer.strip(), resolution
 
 
 def _table_row(cells: Iterable[str]) -> str:
@@ -77,7 +82,7 @@ class _Evidence:
     documents: list[Document]
     # For each criterion, the global citation numbers surviving its own search.
     allowed: list[set[int]]
-    missing: list[str]
+    missing: list[tuple[str, Resolution]]
 
 
 def _select_evidence(ranked: list[list[Document]], quota: int, first: int) -> _Evidence:
@@ -109,9 +114,12 @@ def _select_evidence(ranked: list[list[Document]], quota: int, first: int) -> _E
                 selected.setdefault(key, passages[key])
     numbers = {key: number for number, key in enumerate(selected, first)}
     allowed = [{numbers[key] for key in hits if key in numbers} for hits in candidates]
-    return _Evidence(list(selected.values()), allowed, [
-        _BUDGET if hits and not refs else _MISSING for hits, refs in zip(candidates, allowed)
-    ])
+    missing = [
+        (_BUDGET, Resolution(Outcome.INSUFFICIENT, ("context_budget",))) if hits and not refs
+        else (_MISSING, Resolution(Outcome.INSUFFICIENT, ("missing_evidence",)))
+        for hits, refs in zip(candidates, allowed)
+    ]
+    return _Evidence(list(selected.values()), allowed, missing)
 
 
 def answer_by_major(
@@ -119,7 +127,7 @@ def answer_by_major(
     *, criteria: tuple[str, ...], top_k: int, filters: RetrievalFilters | None,
     config: RunnableConfig | None,
     diagnostics: QuestionDiagnostics | None = None,
-) -> tuple[str, list[Document]]:
+) -> tuple[str, list[Document], Resolution]:
     # Reserve each subject's share before searching. Finish all reads before
     # generation so progress stages stay ordered and the same Session is used serially.
     groups = []
@@ -160,6 +168,7 @@ def answer_by_major(
 
     sections: list[str] = []
     columns: list[list[str]] = []
+    outcomes = []
     generation = None
     first = 1
     for name, subquestion, evidence in groups:
@@ -182,23 +191,25 @@ def answer_by_major(
                 for i in covered:
                     refs = ", ".join(str(ref) for ref in sorted(evidence.allowed[i]))
                     prompt["question"] += f"{criteria[i]} (đoạn {refs})\n"
-                candidate = generation.invoke(prompt, config=config).cells
-                if len(candidate) != len(covered):
+                replies = generation.invoke(prompt, config=config).cells
+                if len(replies) != len(covered):
                     raise ValueError("Comparison response does not match requested criteria")
             else:
-                candidate = [generation.invoke(prompt, config=config)]
-            for i, cell in zip(covered, candidate):
-                cells[i] = _checked_cell(cell, evidence.allowed[i], len(documents))
+                replies = [generation.invoke(prompt, config=config)]
+            for i, reply in zip(covered, replies):
+                cells[i] = _checked_cell(reply.answer, reply.resolution, evidence.allowed[i], len(documents))
             first += len(evidence.documents)
+        texts, resolutions = zip(*cells)
+        outcomes.extend(resolutions)
         if criteria:
-            columns.append(cells)
+            columns.append(list(texts))
         else:
-            sections.append(f"**{name}**\n\n{cells[0]}")
+            sections.append(f"**{name}**\n\n{texts[0]}")
 
     if criteria:
         rows = [_table_row(["Tiêu chí", *(name for name, _, _ in groups)]),
                 _table_row(["---"] * (1 + len(groups)))]
         for index, criterion in enumerate(criteria):
             rows.append(_table_row([criterion, *(column[index] for column in columns)]))
-        return "\n".join(rows), documents
-    return "\n\n".join(sections), documents
+        return "\n".join(rows), documents, combine_resolutions(outcomes)
+    return "\n\n".join(sections), documents, combine_resolutions(outcomes)

@@ -1,6 +1,7 @@
 """Gemini answers for public requests and verified Google Search citations."""
 
 import re
+from typing import Literal
 from urllib.parse import urlsplit
 
 import httpx
@@ -11,6 +12,7 @@ from pydantic import BaseModel
 from rag.citations import cited_source_indices
 from rag.langchain_pipeline import MODEL
 from rag.progress import notify
+from rag.question_outcomes import Outcome, Resolution, mark_executed
 
 
 GENERAL_UNAVAILABLE = "Hiện chưa thể trả lời phần kiến thức chung. Bạn có thể thử lại sau."
@@ -29,27 +31,41 @@ class GroundedResult(BaseModel):
     search_suggestions_html: str
 
 
+class GeneralAnswer(BaseModel):
+    outcome: Literal["answered", "partial", "clarification", "unavailable"]
+    answer: str
+
+
+class CredentialsUnavailable(RuntimeError):
+    pass
+
+
 def _generate(question: str, *, use_search: bool) -> types.GenerateContentResponse:
     from config import settings
 
     key = settings.gemini_api_key
     if key is None or not key.get_secret_value():
-        raise ValueError("Gemini credentials unavailable")
+        raise CredentialsUnavailable("Gemini credentials unavailable")
     instruction = (
         "Answer in the question's language. Give a short plain-text answer grounded entirely "
         "in Google Search. Support every factual claim. Do not write links, citations, "
         "source lists or Markdown in the text."
         if use_search else
         "Answer in the question's language using general knowledge. Do not claim to know "
-        "VLU policy or internal documents. Do not give current information or add source references."
+        "VLU policy or internal documents. Do not give current information or add source references. "
+        "Report whether all, some, or none of the requested items were answered. Use clarification "
+        "when more user input is needed."
     )
     config = types.GenerateContentConfig(
         system_instruction=instruction,
         tools=[types.Tool(google_search=types.GoogleSearch())] if use_search else None,
+        response_mime_type=None if use_search else "application/json",
+        response_schema=None if use_search else GeneralAnswer,
         max_output_tokens=1024,
     )
     http_options = types.HttpOptions(timeout=12_000, retry_options=types.HttpRetryOptions(attempts=1))
     with genai.Client(api_key=key.get_secret_value(), vertexai=False, http_options=http_options) as client:
+        mark_executed("web" if use_search else "general")
         return client.models.generate_content(
             model=getattr(settings, "rag_generation_model", MODEL),
             contents=question,
@@ -57,14 +73,24 @@ def _generate(question: str, *, use_search: bool) -> types.GenerateContentRespon
         )
 
 
-def general_answer(question: str) -> str:
+def general_answer(question: str) -> tuple[str, Resolution]:
     notify("generation")
     try:
-        answer = (_generate(question, use_search=False).text or "").strip()
+        result = GeneralAnswer.model_validate_json(_generate(question, use_search=False).text or "")
+        if result.outcome == "unavailable":
+            return GENERAL_UNAVAILABLE, Resolution(Outcome.UNAVAILABLE, ("general_unavailable",))
+        answer = result.answer.strip()
+        if not answer:
+            raise ValueError("Empty general answer")
         cited_source_indices(answer, 0)
-        return answer or GENERAL_UNAVAILABLE
-    except (errors.APIError, httpx.HTTPError, TimeoutError, ValueError, RuntimeError):
-        return GENERAL_UNAVAILABLE
+        reason = {"partial": ("unanswered_items",), "clarification": ("missing_input",)}
+        return answer, Resolution(Outcome(result.outcome), reason.get(result.outcome, ()))
+    except CredentialsUnavailable:
+        return GENERAL_UNAVAILABLE, Resolution(Outcome.UNAVAILABLE, ("credentials_unavailable",))
+    except (errors.APIError, httpx.HTTPError, TimeoutError, RuntimeError):
+        return GENERAL_UNAVAILABLE, Resolution(Outcome.ERROR, ("provider_error",))
+    except ValueError:
+        return GENERAL_UNAVAILABLE, Resolution(Outcome.ERROR, ("invalid_generation",))
 
 
 def _host(url: str) -> str | None:
@@ -143,13 +169,20 @@ def _parse_grounded(response: types.GenerateContentResponse) -> GroundedResult |
     return GroundedResult(text="".join(text_parts), sources=list(sources.values()), search_suggestions_html=suggestions)
 
 
-def web_answer(question: str) -> GroundedResult | None:
+def web_answer(question: str) -> tuple[GroundedResult | None, Resolution]:
     from config import settings
 
     if not getattr(settings, "rag_google_search_enabled", False):
-        return None
+        return None, Resolution(Outcome.UNAVAILABLE, ("search_disabled",))
     notify("web_search")
     try:
-        return _parse_grounded(_generate(question, use_search=True))
-    except (errors.APIError, httpx.HTTPError, TimeoutError, ValueError, RuntimeError):
-        return None
+        result = _parse_grounded(_generate(question, use_search=True))
+        if result is None:
+            return None, Resolution(Outcome.INSUFFICIENT, ("missing_grounding",))
+        return result, Resolution(Outcome.ANSWERED)
+    except CredentialsUnavailable:
+        return None, Resolution(Outcome.UNAVAILABLE, ("credentials_unavailable",))
+    except (errors.APIError, httpx.HTTPError, TimeoutError, RuntimeError):
+        return None, Resolution(Outcome.ERROR, ("provider_error",))
+    except ValueError:
+        return None, Resolution(Outcome.ERROR, ("invalid_generation",))

@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from uuid import uuid4
 
 from langchain_core.messages import AIMessage
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from langchain_google_genai.chat_models import GoogleRateLimitError
 from pydantic import SecretStr
 from sqlalchemy.orm import Session
@@ -53,7 +53,7 @@ class LangChainPipelineTests(unittest.TestCase):
             captured_prompts.append(prompt)
             return AIMessage(content="  Grounded answer [1] [2]  ")
 
-        model = RunnableLambda(respond)
+        model = GroundedModelStub(respond)
         with (
             patch(
                 "rag.langchain_retriever.retrieve_chunks", return_value=chunks
@@ -106,7 +106,7 @@ class LangChainPipelineTests(unittest.TestCase):
     def test_rejects_empty_model_response(self) -> None:
         session = Mock(spec=Session)
         chunks = [retrieved_chunk("guide.txt", 0, "Context")]
-        model = RunnableLambda(lambda _: AIMessage(content=" \n"))
+        model = GroundedModelStub(lambda _: AIMessage(content=" \n"))
 
         with (
             patch(
@@ -161,7 +161,7 @@ class LangChainPipelineTests(unittest.TestCase):
         def fail(_: object) -> AIMessage:
             raise RuntimeError("generation failed")
 
-        model = RunnableLambda(fail)
+        model = GroundedModelStub(fail)
         with (
             patch(
                 "rag.langchain_retriever.retrieve_chunks", return_value=chunks
@@ -181,7 +181,7 @@ class LangChainPipelineTests(unittest.TestCase):
         def fail(_: object) -> AIMessage:
             raise provider_error
 
-        model = RunnableLambda(fail)
+        model = GroundedModelStub(fail)
         with (
             patch(
                 "rag.langchain_retriever.retrieve_chunks", return_value=chunks

@@ -8,7 +8,7 @@ from uuid import UUID, uuid4
 
 from langchain_core.documents import Document
 from langchain_core.messages import AIMessage, HumanMessage
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
 from sqlalchemy.orm import Session
 
 
@@ -126,7 +126,7 @@ class TraceAttachmentTests(unittest.TestCase):
             content=PAGE_CONTENT,
             cosine_distance=0.12,
         )
-        model = RunnableLambda(lambda _: AIMessage(content="Answer [1]"))
+        model = GroundedModelStub(lambda _: AIMessage(content="Answer [1]"))
 
         with (
             patch.dict(sys.modules, {"config": runtime_config(True)}),

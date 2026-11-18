@@ -1,8 +1,7 @@
 import time
-from typing import Any
+from typing import Any, Literal
 
 from langchain_core.documents import Document
-from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.runnables import (
     Runnable,
@@ -19,6 +18,7 @@ from sqlalchemy.orm import Session
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
 from rag.provider_errors import wrap_rate_limit_error
 from rag.progress import notify
+from rag.question_outcomes import Outcome, Resolution
 from rag.source_metadata import RetrievalFilters
 
 
@@ -85,9 +85,24 @@ def _invoke_generation_model(
         raise wrapped from error
 
 
+class GroundedAnswer(BaseModel):
+    outcome: Literal["answered", "partial", "insufficient_evidence"] = Field(
+        description="Use answered when all requested items are supported, partial when only some "
+                    "are supported, and insufficient_evidence when none can be answered."
+    )
+    answer: str = Field(description="Grounded answer with citations, or an empty string for insufficient evidence.")
+
+    @property
+    def resolution(self) -> Resolution:
+        if self.outcome == "answered":
+            return Resolution(Outcome.ANSWERED)
+        return Resolution(Outcome(self.outcome), ("missing_evidence",))
+
+
 class ComparisonColumn(BaseModel):
-    cells: list[str] = Field(description="One short answer per criterion, in order. Cite the supplied "
-                             "block numbers in each cell. Use an empty string for insufficient evidence.")
+    cells: list[GroundedAnswer] = Field(description="One coverage decision and short answer per criterion, "
+                                                    "in order. Cite the supplied block numbers per cell.")
+
 
 
 def _prompt_and_generate(model: Runnable) -> Runnable:
@@ -113,18 +128,19 @@ def grounded_comparison_chain() -> Runnable:
     return _prompt_and_generate(_get_chat_model().with_structured_output(ComparisonColumn))
 
 
-def grounded_answer_chain() -> Runnable[dict[str, Any], str]:
+def grounded_answer_chain() -> Runnable[dict[str, Any], GroundedAnswer]:
+    def validate(response: GroundedAnswer) -> GroundedAnswer:
+        if response.outcome == "insufficient_evidence":
+            return response.model_copy(update={"answer": NO_CONTEXT_MESSAGE})
+        return response.model_copy(update={"answer": _require_answer(response.answer)})
+
     return (
-        _prompt_and_generate(_get_chat_model())
-        | StrOutputParser().with_config(
-            run_name="parse_model_answer",
-            tags=["rag", "generation"],
-        )
-        | RunnableLambda(_require_answer, name="validate_model_answer")
+        _prompt_and_generate(_get_chat_model().with_structured_output(GroundedAnswer))
+        | RunnableLambda(validate, name="parse_model_answer").with_config(tags=["rag", "generation"])
     ).with_config(run_name="generate_grounded_answer", tags=["rag", "generation"])
 
 
-def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
+def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], GroundedAnswer]:
     return RunnablePassthrough.assign(
         context=RunnableLambda(
             lambda state: format_documents(state["documents"]),
@@ -156,21 +172,29 @@ def build_rag_pipeline(
         (
             lambda state: bool(state["documents"]),
             RunnablePassthrough.assign(
-                answer=RunnableLambda(
+                generated=RunnableLambda(
                     _generation_chain,
                     name="create_generation_chain",
                 )
             ),
         ),
         RunnablePassthrough.assign(
-            answer=RunnableLambda(
-                lambda _: NO_CONTEXT_MESSAGE,
+            generated=RunnableLambda(
+                lambda _: GroundedAnswer(outcome="insufficient_evidence", answer=NO_CONTEXT_MESSAGE),
                 name="no_relevant_context_answer",
             )
         ),
     ).with_config(run_name="answer_from_context", tags=["rag", "answer"])
 
-    return (retrieval_step | answer_step).with_config(
+    def result(state: dict[str, Any]) -> dict[str, Any]:
+        generated = state["generated"]
+        resolution = generated.resolution if state["documents"] else Resolution(
+            Outcome.INSUFFICIENT, ("no_retrieved_evidence",)
+        )
+        return {"question": state["question"], "documents": state["documents"],
+                "answer": generated.answer, "resolution": resolution}
+
+    return (retrieval_step | answer_step | RunnableLambda(result)).with_config(
         run_name="sqlalchemy_rag_pipeline",
         tags=["rag", "question-answering"],
     )

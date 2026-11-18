@@ -112,7 +112,7 @@ class URLNotificationRetirementTests(unittest.TestCase):
 
     def test_legacy_schema_and_applied_migration_chain_are_retained(self):
         graph = ScriptDirectory(str(Path(__file__).resolve().parents[1] / "migrations"))
-        self.assertEqual(graph.get_heads(), ["a7e3c9d1b502"])
+        self.assertEqual(graph.get_revision("a7e3c9d1b502").down_revision, "c2a1e8d4f6b0")
         self.assertEqual(graph.get_revision("f9d4b2c7e501").down_revision, "b6c8d0e2f4a1")
         self.assertEqual(graph.get_revision("c2a1e8d4f6b0").down_revision, "f9d4b2c7e501")
         inspector = inspect(self.fixture.engine)

@@ -6,13 +6,13 @@ import unittest
 from unittest.mock import Mock, patch
 from uuid import uuid4
 
-from langchain_core.runnables import RunnableLambda
+from answer_fixture import GroundedModelStub
+from answer_fixture import comparison_column
 from sqlalchemy import delete, select
 
 import test_source_activation as fixture
-from rag.langchain_pipeline import ComparisonColumn
 from rag.major_catalog import read_major_catalog, subject_name
-from rag.models import Chunk, Document, Message
+from rag.models import Chunk, Document, Message, QuestionTurn
 from rag.qa import answer_question
 from rag.qa_diagnostics import QuestionDiagnostics
 from rag.query_processing import process_query
@@ -156,10 +156,10 @@ class MultiDocumentTests(unittest.TestCase):
             context = prompt.to_messages()[-1].content.split("Question:")[0]
             self.assertEqual(context.count("Chunk index:"), 1)
             self.assertIn(code_excerpt, context)
-            return ComparisonColumn(cells=["7340115 [1]"])
+            return comparison_column(["7340115 [1]"])
 
         model = Mock()
-        model.with_structured_output.return_value = RunnableLambda(answer)
+        model.with_structured_output.return_value = GroundedModelStub(answer)
         self.db.model.return_value = model
         with self.db.sessions() as session:
             chunks = {(chunk.document_id, chunk.chunk_index): chunk for chunk in session.scalars(select(Chunk))}
@@ -211,7 +211,7 @@ class MultiDocumentTests(unittest.TestCase):
     def test_undecomposed_query_traces_the_actual_pipeline_search(self):
         document_id = self.seed("Quy định thư viện")
         self.structured.invoke.return_value = {"action": "search", "standalone_query": "Quy định thư viện"}
-        self.db.model.return_value = RunnableLambda(lambda _: "Quy định thư viện [1]")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Quy định thư viện [1]")
         trace = QuestionDiagnostics()
         with self.db.sessions() as session:
             answer = answer_question(session, "Thư viện có quy định gì?", diagnostics=trace)
@@ -268,7 +268,7 @@ class MultiDocumentTests(unittest.TestCase):
             citation = re.search(r"\[(\d+)\]", context)[0]
             return ("Ngữ âm " if "Ngữ âm" in context else "Đồ án ") + citation
 
-        self.db.model.return_value = RunnableLambda(reply)
+        self.db.model.return_value = GroundedModelStub(reply)
         result = self.ask("Cho vài môn học của Kiến trúc và Ngôn ngữ Nhật.")
         self.assertIn("Đồ án [1]", result["answer"])
         self.assertIn("Ngữ âm [4]", result["answer"])
@@ -285,15 +285,18 @@ class MultiDocumentTests(unittest.TestCase):
         self.seed("Ngành: Ngôn ngữ Nhật\nHọc phần: Ngữ âm")
         self.plan(["Kiến trúc", "Ngôn ngữ Nhật"], compare=True)
         structured = Mock()
-        structured.with_structured_output.return_value = RunnableLambda(
-            lambda prompt: ComparisonColumn(cells=["Đồ án [1]", ""] if "Đồ án" in prompt.to_messages()[-1].content
-                                                else ["Ngữ âm [2]", ""])
+        structured.with_structured_output.return_value = GroundedModelStub(
+            lambda prompt: comparison_column(["Đồ án [1]", None] if "Đồ án" in prompt.to_messages()[-1].content
+                                                else ["Ngữ âm [2]", None])
         )
         self.db.model.return_value = structured
         result = self.ask("So sánh học phần và học phí hai ngành.")
         self.assertIn("| Học phần | Đồ án [1] | Ngữ âm [2] |", result["answer"])
         self.assertEqual(result["answer"].count("Chưa đủ thông tin"), 2)
         self.assertEqual(len(result["sources"]), 2)
+        with self.db.sessions() as session:
+            turn = session.scalar(select(QuestionTurn))
+            self.assertEqual((turn.outcome, turn.reasons), ("partial", ["missing_evidence"]))
 
     def test_distinct_scoped_passages_are_retrieved_for_each_comparison_cell(self):
         majors = ["Kiến trúc", "Ngôn ngữ Nhật"]
@@ -314,17 +317,17 @@ class MultiDocumentTests(unittest.TestCase):
 
         def answer(prompt):
             passages = prompt.to_messages()[-1].content.split("Question:")[0]
-            cells = ["", ""]
+            cells = [None, None]
             for number, content in re.findall(r"\[(\d+)\]\nFilename:.*?Content:\n(.*?)(?=\n\n\[|\Z)",
                                               passages, re.S):
                 for course, fee in facts:
                     for index, value in enumerate((course, fee)):
                         if value in content:
                             cells[index] = f"{value} [{number}]"
-            return ComparisonColumn(cells=cells)
+            return comparison_column(cells)
 
         model = Mock()
-        model.with_structured_output.return_value = RunnableLambda(answer)
+        model.with_structured_output.return_value = GroundedModelStub(answer)
         self.db.model.return_value = model
         with patch("rag.retrieval.embed_query", side_effect=vector):
             result = self.ask("So sánh học phần và học phí khóa K32 của Kiến trúc và Ngôn ngữ Nhật.",
@@ -341,8 +344,8 @@ class MultiDocumentTests(unittest.TestCase):
 
         # One passage per major. The fee passages passed retrieval but could
         # not fit. Distinguish that from a corpus with no relevant fee evidence.
-        model.with_structured_output.return_value = RunnableLambda(
-            lambda p: ComparisonColumn(cells=answer(p).cells[:1]))
+        model.with_structured_output.return_value = GroundedModelStub(
+            lambda p: comparison_column(answer(p).cells[:1]))
         with patch("rag.retrieval.embed_query", side_effect=vector):
             limited = self.ask("So sánh học phần và học phí khóa K32.", top_k=2, filters={"audience": "K32"})
         self.assertEqual(limited["answer"].count("Chưa đủ ngân sách"), 2)
@@ -352,8 +355,8 @@ class MultiDocumentTests(unittest.TestCase):
 
         # The course and fee indices both exist within major A. Swapping them
         # must fail even though both indices pass the global range check.
-        model.with_structured_output.return_value = RunnableLambda(
-            lambda _: ComparisonColumn(cells=["Đồ án [2]", "12 triệu [1]"]))
+        model.with_structured_output.return_value = GroundedModelStub(
+            lambda _: comparison_column(["Đồ án [2]", "12 triệu [1]"]))
         with patch("rag.retrieval.embed_query", side_effect=vector):
             invalid = self.db.client.post("/questions", json={"question": "So sánh hai tiêu chí K32",
                                                              "filters": {"audience": "K32"}})
@@ -374,7 +377,7 @@ class MultiDocumentTests(unittest.TestCase):
             course = re.search(r"Học phần: ([^\n]+)", context)[1]
             return course + " " + re.search(r"\[\d+\]", context)[0]
 
-        self.db.model.return_value = RunnableLambda(answer)
+        self.db.model.return_value = GroundedModelStub(answer)
         for count in (3, 4):
             with self.subTest(count=count):
                 names = list(majors)[:count]
@@ -396,10 +399,10 @@ class MultiDocumentTests(unittest.TestCase):
         def respond(prompt):
             context = prompt.to_messages()[-1].content.split("Question:")[0]
             number, code, duration = re.search(r"\[(\d+)\].*?Mã ngành: (\d{7}), thời gian (\d+ năm)", context, re.S).groups()
-            return ComparisonColumn(cells=[f"{code} [{number}]", f"{duration} [{number}]"])
+            return comparison_column([f"{code} [{number}]", f"{duration} [{number}]"])
 
         model = Mock()
-        model.with_structured_output.return_value = RunnableLambda(respond)
+        model.with_structured_output.return_value = GroundedModelStub(respond)
         self.db.model.return_value = model
         trace = QuestionDiagnostics()
         question = "So sánh học phí, mã ngành và thời gian."
@@ -441,7 +444,7 @@ class MultiDocumentTests(unittest.TestCase):
         self.seed("Ngành: Ngôn ngữ Nhật", tilt=3.0)
         self.seed("Ngành: Ngôn ngữ Nhật", category="khác")
         self.plan(["Kiến trúc", "Ngôn ngữ Nhật", "Âm nhạc"])
-        self.db.model.return_value = RunnableLambda(lambda _: "Đồ án [1]")
+        self.db.model.return_value = GroundedModelStub(lambda _: "Đồ án [1]")
         result = self.ask("Môn học của ba ngành?", filters={"category": "đào tạo"})
         self.assertIn("**Kiến trúc**\n\nĐồ án [1]", result["answer"])
         for name in ("Ngôn ngữ Nhật", "Âm nhạc"):
@@ -456,7 +459,7 @@ class MultiDocumentTests(unittest.TestCase):
             self.assertNotIn("OUTSIDE_BUDGET", prompt.to_messages()[-1].content)
             return "Học phí là 15 triệu."
 
-        self.db.model.return_value = RunnableLambda(unsupported)
+        self.db.model.return_value = GroundedModelStub(unsupported)
         result = self.ask("Học phí ngành Kiến trúc?")
         self.assertIn("Chưa đủ thông tin", result["answer"])
         self.assertNotIn("15 triệu", result["answer"])
@@ -474,7 +477,7 @@ class MultiDocumentTests(unittest.TestCase):
         result = self.ask("Ngành đó học gì?", conversation_id=conversation)
         self.assertEqual([row["document_id"] for row in result["sources"]], [str(b)])
         self.plan(["Kiến trúc", "Ngôn ngữ Nhật"])
-        self.db.model.return_value = RunnableLambda(lambda p: re.search(r"\[\d+\]", p.to_messages()[-1].content)[0])
+        self.db.model.return_value = GroundedModelStub(lambda p: re.search(r"\[\d+\]", p.to_messages()[-1].content)[0])
         self.ask("Nêu môn học của Kiến trúc và Ngôn ngữ Nhật", conversation_id=conversation)
         self.plan(["Kiến trúc"])  # Resolver guesses one of two equally plausible referents.
         self.db.model.reset_mock()
@@ -498,7 +501,7 @@ class MultiDocumentTests(unittest.TestCase):
             contexts.append(prompt.to_messages()[-1].content.split("Question:")[0])
             return "Học phí [1]."
 
-        self.db.model.return_value = RunnableLambda(wrong_major)
+        self.db.model.return_value = GroundedModelStub(wrong_major)
         response = self.db.client.post("/questions", json={"question": "Học phí hai ngành?"})
         self.assertEqual(response.status_code, 503)
         self.assertIn("[1]", contexts[0])

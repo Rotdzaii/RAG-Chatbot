@@ -17,6 +17,7 @@ from rag.query_processing import process_query
 from rag.retrieval import RetrievedChunk
 from rag.tracing import LangChainTraceHandler
 from rag.progress import notify
+from rag.question_outcomes import Outcome, Resolution, combine_resolutions, current_execution, mark_executed
 from rag.source_metadata import RetrievalFilters
 
 _INTERNAL_REFERENCE = re.compile(
@@ -38,6 +39,7 @@ class QuestionAnswer:
     # Production answers set this to the references actually present in the text.
     cited_source_indices: tuple[int, ...] | None = None
     grounding: GroundedResult | None = None
+    resolution: Resolution | None = None
 
 
 def _clarification(result: QueryProcessingResult, text: str) -> QuestionAnswer:
@@ -45,6 +47,7 @@ def _clarification(result: QueryProcessingResult, text: str) -> QuestionAnswer:
         answer=text, sources=[], history_used=result.history_used,
         query_processing_action="clarify", query_processing_elapsed_ms=result.elapsed_ms,
         cited_source_indices=(),
+        resolution=Resolution(Outcome.CLARIFY, ("missing_input",)),
     )
 
 
@@ -82,6 +85,13 @@ def answer_question(
 ) -> QuestionAnswer:
     notify("query")
     query_result = process_query(question, history)
+    execution = current_execution.get()
+    if execution is not None and query_result.action == "search":
+        if query_result.include_internal:
+            execution.planned.add("internal")
+        for part in query_result.external_parts:
+            if part.route in ("web", "general"):
+                execution.planned.add(part.route)
     if diagnostics is not None:
         diagnostics.plan = {
             "top_k": top_k, "filters": filters.model_dump(exclude_none=True) if filters else {},
@@ -119,9 +129,12 @@ def _answer_routed(
 
     internal = None
     sections = []
+    outcomes = []
     if plan.include_internal:
         internal = _answer_internal(session, question, plan, top_k, history, filters, diagnostics)
         sections.append(f"**Tài liệu nội bộ VLU**\n\n{internal.answer}")
+        if internal.resolution is not None:
+            outcomes.append(internal.resolution)
     base = internal or QuestionAnswer("", [], history_used=plan.history_used,
                                       query_processing_elapsed_ms=plan.elapsed_ms, cited_source_indices=())
     grounding = None
@@ -136,16 +149,21 @@ def _answer_routed(
             if len(plan.external_parts) == 1 and internal is None:
                 return _clarification(plan, answer)
             label = "Cần làm rõ"
+            resolution = Resolution(Outcome.CLARIFY, ("missing_input",))
         elif part.route == "general":
-            label, answer = "Kiến thức chung", general_answer(part.question)
+            label = "Kiến thức chung"
+            answer, resolution = general_answer(part.question)
         else:
-            grounding = web_answer(part.question)
+            grounding, resolution = web_answer(part.question)
             if grounding is not None:
+                outcomes.append(resolution)
                 continue
             label = WEB_ANSWER_LABEL
             answer = WEB_UNAVAILABLE
         sections.append(f"**{label}**\n\n{answer}")
-    return replace(base, answer="\n\n".join(sections), grounding=grounding)
+        outcomes.append(resolution)
+    merged = combine_resolutions(outcomes) if internal is None or internal.resolution is not None else None
+    return replace(base, answer="\n\n".join(sections), grounding=grounding, resolution=merged)
 
 
 def _answer_internal(
@@ -167,10 +185,18 @@ def _answer_internal(
         if len({major_key(part.major) for part in parts}) != len(parts):
             return _clarification(query_result, "Bạn muốn hỏi về những ngành nào?")
         notify("retrieval")
+        mark_executed("internal")
         inventory = diagnostics.inventory if diagnostics is not None and query_result.scope == "inventory" else None
         catalog = read_major_catalog(session, filters, inventory=inventory)
         if query_result.scope == "inventory":
             answer, sources = catalog.inventory_answer()
+            if catalog.incomplete:
+                resolution = Resolution(Outcome.PARTIAL if catalog.majors else Outcome.INSUFFICIENT,
+                                        ("unidentified_document",))
+            elif not catalog.majors:
+                resolution = Resolution(Outcome.INSUFFICIENT, ("no_active_documents",))
+            else:
+                resolution = Resolution(Outcome.ANSWERED)
         else:
             if history and len(parts) == 1:
                 focus = _resolve_major_followup(catalog, question, history, parts[0])
@@ -180,13 +206,14 @@ def _answer_internal(
                     parts = (focus,)
                     standalone = f"{focus.major} — {focus.question}"
             criteria = query_result.comparison_criteria or ("Thông tin theo yêu cầu",)
-            answer, documents = answer_by_major(
+            answer, documents, resolution = answer_by_major(
                 session, catalog, parts, criteria=criteria if query_result.scope == "compare" else (),
                 top_k=top_k, filters=filters, config=config,
                 diagnostics=diagnostics,
             )
             sources = _as_sources(documents)
     else:
+        mark_executed("internal")
         pipeline = build_rag_pipeline(
             session, top_k=top_k, **({"filters": filters} if filters is not None else {})
         )
@@ -197,13 +224,18 @@ def _answer_internal(
                 observation.record_selection({doc.metadata["chunk_id"]: i for i, doc in enumerate(result["documents"], 1)})
         answer = result["answer"]
         sources = _as_sources(result["documents"])
+        resolution = result.get("resolution")
     citations = cited_source_indices(answer, len(sources))
     if not citations and query_result.scope == "answer" and not parts:
         answer = NO_CONTEXT_MESSAGE
+        if resolution and resolution.outcome in (Outcome.ANSWERED, Outcome.PARTIAL):
+            # The generation claimed coverage but failed the evidence contract.
+            resolution = Resolution(Outcome.ERROR, ("unverified_answer",))
     return QuestionAnswer(
         answer=answer, sources=sources, history_used=query_result.history_used,
         query_processing_elapsed_ms=query_result.elapsed_ms, rewritten_query=standalone,
         cited_source_indices=citations,
+        resolution=resolution,
     )
 
 

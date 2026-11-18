@@ -244,3 +244,38 @@ class Message(Base):
         if value not in {"user", "assistant"}:
             raise ValueError("Message role must be 'user' or 'assistant'")
         return value
+
+
+class QuestionTurn(Base):
+    __tablename__ = "question_turns"
+    __table_args__ = (
+        CheckConstraint("state IN ('running', 'completed', 'failed', 'cancelled')", name="ck_question_turns_state"),
+        CheckConstraint(
+            "(state = 'running' AND finished_at IS NULL AND outcome IS NULL) OR "
+            "(state = 'cancelled' AND finished_at IS NOT NULL AND outcome IS NULL) OR "
+            "(state = 'completed' AND finished_at IS NOT NULL) OR "
+            "(state = 'failed' AND finished_at IS NOT NULL AND outcome IS NOT NULL AND outcome = 'error')",
+            name="ck_question_turns_lifecycle",
+        ),
+        CheckConstraint(
+            "outcome IN ('answered', 'partial', 'insufficient_evidence', 'clarification', 'unavailable', 'error')",
+            name="ck_question_turns_outcome",
+        ),
+        Index("ix_question_turns_received_at", "received_at"),
+    )
+
+    user_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    request_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True), primary_key=True)
+    fingerprint: Mapped[str] = mapped_column(String(64))
+    attempt_id: Mapped[UUID] = mapped_column(PostgreSQLUUID(as_uuid=True))
+    received_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    state: Mapped[str] = mapped_column(String(12))
+    outcome: Mapped[str | None] = mapped_column(String(24))
+    planned_routes: Mapped[list[str]] = mapped_column(JSONB)
+    executed_routes: Mapped[list[str]] = mapped_column(JSONB)
+    reasons: Mapped[list[str]] = mapped_column(JSONB)
+    assistant_message_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("messages.id", ondelete="SET NULL"), unique=True,
+    )
+    citation_version: Mapped[int | None] = mapped_column(Integer)
