@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
+import unicodedata
 from typing import Sequence
 
 from langchain_core.prompts import ChatPromptTemplate
@@ -24,6 +26,14 @@ from rag.provider_errors import (
 
 
 LOGGER = logging.getLogger("uvicorn.error")
+# A fully specified corpus inventory needs neither a rewrite nor vector search.
+# Use a whole-question match so year, faculty and other qualifiers still reach
+# the resolver; a substring match would silently discard them.
+_VLU_INVENTORY = re.compile(
+    r"(?:vlu|(?:trường )?đại học văn lang) (?:hiện(?: nay)? )?"
+    r"(?:có|đào tạo) (?:bao nhiêu|những|các) ngành(?: đào tạo)?(?: nào)?[?.!]*",
+    re.I,
+)
 QUERY_PROCESSING_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -94,6 +104,12 @@ def process_query(
     history: Sequence[HistoryMessage] = (),
 ) -> QueryProcessingResult:
     started_at = time.perf_counter()
+    normalized = unicodedata.normalize("NFC", " ".join(question.split()))
+    if _VLU_INVENTORY.fullmatch(normalized):
+        return QueryProcessingResult(
+            action="search", standalone_query=question, clarification=None, history_used=False,
+            elapsed_ms=(time.perf_counter() - started_at) * 1000, scope="inventory",
+        )
     history_used = bool(history)
     try:
         structured_model = _get_query_model().with_structured_output(QueryDecision)
@@ -146,4 +162,7 @@ def process_query(
         clarification=decision.clarification,
         history_used=history_used,
         elapsed_ms=elapsed_ms,
+        scope=decision.scope,
+        major_queries=tuple(decision.major_queries),
+        comparison_criteria=tuple(decision.comparison_criteria),
     )

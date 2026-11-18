@@ -1,0 +1,61 @@
+{
+  "samples": {
+    "marketing": "marketing/marketing_vlu_web_2026-10-01.pdf",
+    "software": "software_engineering/software_engineering_vlu_web_2026-10-06.pdf",
+    "finance": "finance_banking/finance_banking_vlu_web_2026-10-08.pdf"
+  },
+  "cases": [
+    {
+      "id": "courses",
+      "question": "Nêu hai môn học tiêu biểu của ngành Marketing và hai môn của ngành Kỹ thuật phần mềm tại VLU.",
+      "expect": "Mỗi ngành có hai ví dụ với trích dẫn đúng. Có thể chấp nhận ví dụ khác nếu đoạn được trích dẫn xác nhận.",
+      "evidence": [
+        ["marketing", 3, "Kinh tế vi mô; Marketing căn bản; Hành vi tiêu dùng"],
+        ["software", 3, "Nguyên lý lập trình • Nhập môn Kỹ thuật phần mềm"]
+      ],
+      "forbid": "Gán môn của ngành này cho ngành kia, hoặc kết luận đây là danh sách bắt buộc của K32."
+    },
+    {
+      "id": "comparison",
+      "question": "So sánh Marketing và Kỹ thuật phần mềm theo mã ngành và thời gian đào tạo của kỳ nhập học 2026.",
+      "expect": "Marketing 7340115 và 3,5 năm. Kỹ thuật phần mềm 7480103 và 4 năm. Kiểm tra riêng từng ô.",
+      "evidence": [
+        ["marketing", 1, "Mã ngành 7340115 Kỳ nhập học 2026 Thời gian đào tạo 3.5 năm"],
+        ["software", 1, "Mã ngành 7480103 Kỳ nhập học 2026 Thời gian đào tạo 4 năm"]
+      ],
+      "forbid": "Suy thời gian từng chuyên ngành hoặc dùng mã của một ngành làm nguồn cho ngành kia."
+    },
+    {
+      "id": "three-majors",
+      "question": "Cho biết mã ngành của Marketing, Kỹ thuật phần mềm và Tài chính – Ngân hàng theo các tài liệu giới thiệu kỳ nhập học 2026.",
+      "expect": "Ghép đúng từng ngành với mã tương ứng và nguồn của ngành đó.",
+      "evidence": [
+        ["marketing", 1, "Mã ngành 7340115 Kỳ nhập học 2026"],
+        ["software", 1, "Mã ngành 7480103 Kỳ nhập học 2026"],
+        ["finance", 1, "Mã ngành 7340201 Kỳ nhập học 2026"]
+      ],
+      "forbid": "Bỏ ngành thứ ba rồi trình bày như đã trả lời đủ cả ba."
+    },
+    {
+      "id": "partial",
+      "question": "Theo các bản giới thiệu kỳ nhập học 2026, Marketing đào tạo trong bao lâu và học phí chính xác học kỳ 1 năm 2027 của ngành Kỹ thuật phần mềm là bao nhiêu?",
+      "expect": "Trả được phần Marketing. PDF Kỹ thuật phần mềm chỉ có khoảng tham khảo, chưa xác nhận mức chính xác cho học kỳ được hỏi.",
+      "evidence": [
+        ["marketing", 1, "Thời gian đào tạo 3.5 năm"],
+        ["software", 6, "Học phí toàn khóa 200 - 250 triệu đồng ≈ 28 - 35 triệu đồng / học kỳ"]
+      ],
+      "forbid": "Lấy trung điểm, mức tối đa hoặc học phí của ngành khác làm mức chính xác năm 2027."
+    },
+    {
+      "id": "inventory",
+      "question": "VLU hiện có bao nhiêu ngành?",
+      "expect": "Đối chiếu danh sách tài liệu đang bật trong artifact. Gộp trùng ngành, kiểm tra từng nguồn khai báo. Nếu có tài liệu chưa xác định, chỉ liệt kê phần đã xác minh.",
+      "evidence": [
+        ["marketing", 1, "Marketing (Tiếp thị) là ngành học"],
+        ["software", 1, "Kỹ thuật phần mềm là ngành học"],
+        ["finance", 1, "Tài chính – Ngân hàng là ngành học"]
+      ],
+      "forbid": "Mặc định đáp số là ba, dùng số PDF hoặc khẳng định tổng số ngành ngoài kho."
+    }
+  ]
+}

@@ -30,7 +30,7 @@ class SourceLike(Protocol):
     filename: str
     chunk_index: int
     content: str
-    cosine_distance: float
+    cosine_distance: float | None
 
 
 class AnswerLike(Protocol):
@@ -406,7 +406,7 @@ def _serialize_source(source: SourceLike, citation_index: int) -> dict[str, obje
         "filename": str(source.filename),
         "chunk_index": int(source.chunk_index),
         "content": str(source.content),
-        "cosine_distance": float(source.cosine_distance),
+        "cosine_distance": source.cosine_distance,
     }
 
 

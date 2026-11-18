@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from rag.embeddings import embed_query
 from rag.index_provenance import BASELINE_EMBEDDING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document
+from rag.qa_diagnostics import current_search
 from rag.source_metadata import RetrievalFilters
 
 
@@ -20,7 +21,7 @@ class RetrievedChunk:
     filename: str
     chunk_index: int
     content: str
-    cosine_distance: float
+    cosine_distance: float | None
     page_start: int | None = None
     page_end: int | None = None
     source_url: str | None = None
@@ -30,9 +31,10 @@ class RetrievedChunk:
 
 def retrieve_chunks(
     session: Session, query: str, top_k: int = 5, *, filters: RetrievalFilters | None = None,
+    subject_headers: tuple[UUID, ...] | None = None,
 ) -> list[RetrievedChunk]:
     return _retrieve(session, query, top_k=top_k, max_distance=MAX_COSINE_DISTANCE,
-                     **({"filters": filters} if filters is not None else {}))
+                     filters=filters, subject_headers=subject_headers)
 
 
 def retrieve_candidates(
@@ -47,9 +49,18 @@ def retrieve_candidates(
                      **({"filters": filters} if filters is not None else {}))
 
 
+def active_document_scope(filters: RetrievalFilters | None):
+    predicates = [Document.is_active.is_(True)]
+    if filters:
+        predicates.extend(getattr(Document, key) == value
+                          for key, value in filters.model_dump(exclude_none=True).items())
+    return predicates
+
+
 def _retrieve(
     session: Session, query: str, *, top_k: int, max_distance: float | None,
     filters: RetrievalFilters | None = None,
+    subject_headers: tuple[UUID, ...] | None = None,
 ) -> list[RetrievedChunk]:
     if not query.strip():
         raise ValueError("Query must not be blank")
@@ -82,18 +93,21 @@ def _retrieve(
         )
         .join(Document, Chunk.document_id == Document.id)
         .where(Chunk.embedding.is_not(None))
-        .where(Document.is_active.is_(True))
+        .where(*active_document_scope(filters))
         .where(compatible_profile)
     )
-    if filters is not None:
-        for key, value in filters.model_dump(exclude_none=True).items():
-            statement = statement.where(getattr(Document, key) == value)
+    if subject_headers is not None:
+        # A replacement gets new chunk IDs. Never attribute its contents to a
+        # major identified from a previously read version of the document.
+        subject_docs = select(Chunk.document_id).where(Chunk.id.in_(subject_headers))
+        statement = statement.where(Document.id.in_(subject_docs))
+    scoped = statement
     if max_distance is not None:
         statement = statement.where(cosine_distance <= max_distance)
     statement = statement.order_by(cosine_distance).limit(top_k)
 
     rows = session.execute(statement).mappings()
-    return [
+    chunks = [
         RetrievedChunk(
             chunk_id=row["chunk_id"],
             document_id=row["document_id"],
@@ -109,3 +123,13 @@ def _retrieve(
         )
         for row in rows
     ]
+    observation = current_search.get()
+    if observation is not None:
+        # Run the normal SELECT first. Examine distances outside both cutoffs
+        # with its exact vector, scope and transaction; never feed these rows to QA.
+        audit = scoped.with_only_columns(
+            Chunk.id.label("chunk_id"), Chunk.document_id, Document.filename,
+            Chunk.chunk_index, cosine_distance.label("cosine_distance"),
+        ).order_by(cosine_distance, Chunk.id)
+        observation.record_candidates(session.execute(audit).mappings(), chunks, max_distance)
+    return chunks
