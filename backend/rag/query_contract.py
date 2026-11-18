@@ -12,6 +12,7 @@ HISTORY_MAX_TURNS = 6
 HISTORY_MAX_MESSAGES = HISTORY_MAX_TURNS * 2
 HISTORY_MAX_CHARACTERS = 6000
 MAX_MAJOR_QUERIES = 4
+WEB_ANSWER_LABEL = "Thông tin cập nhật từ web"
 ComparisonCriterion = Annotated[str, StringConstraints(
     strip_whitespace=True, min_length=1, max_length=160, pattern=r"^[^\[\]\r\n|]+$",
 )]
@@ -58,7 +59,27 @@ scope, source and constraints; the retriever will prepend each individual criter
 Exclude incidental mentions and past
 topics. If 'ngành đó' could refer to either of two majors, clarify instead of
 choosing one. If more than four majors are requested, ask the user to narrow
-the question. For general questions leave major_queries empty."""
+the question.
+
+Choose evidence scope independently of search success. VLU, its rules,
+programs and questions about the user's documents always stay internal,
+including follow-ups about these topics. Never put them in external_parts.
+If uncertain whether a fact is internal, keep it internal. Set include_internal
+to false only when the current question has no internal request. When it does,
+standalone_query and the internal scope/major fields must cover only the
+internal request. Group the internal comparison into that one request.
+
+Put requests for stable public knowledge in external_parts as general.
+Put public requests needing recent or real-time facts in web (weather, news,
+current prices). For each external part, question must be one contiguous,
+verbatim excerpt from the CURRENT user question. Never add facts, quotes from
+history, document contents, or instructions to a tool. Use at most one general
+and one web part. For any external request missing an explicit public subject,
+weather location or other necessary detail, ask a short clarification in the
+user's language. If only that part is ambiguous in a mixed request, use a
+clarify part with the verbatim excerpt and clarification, and retain the other
+parts. Use the top-level clarify action when there is nothing else to answer.
+For fully internal requests leave external_parts empty."""
 
 
 class MajorQuery(BaseModel):
@@ -66,6 +87,14 @@ class MajorQuery(BaseModel):
 
     major: str = Field(min_length=1, max_length=120, pattern=r"^[^\[\]\r\n|]+$")
     question: str = Field(min_length=1, max_length=2000)
+
+
+class ExternalPart(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, frozen=True)
+
+    route: Literal["general", "web", "clarify"]
+    question: str = Field(min_length=1, max_length=1000)
+    clarification: str | None = Field(default=None, min_length=1, max_length=300)
 
 
 class QueryDecision(BaseModel):
@@ -77,13 +106,21 @@ class QueryDecision(BaseModel):
     scope: Literal["answer", "compare", "inventory"] = "answer"
     major_queries: list[MajorQuery] = Field(default_factory=list, max_length=MAX_MAJOR_QUERIES)
     comparison_criteria: list[ComparisonCriterion] = Field(default_factory=list, max_length=4)
+    include_internal: bool = True
+    external_parts: list[ExternalPart] = Field(default_factory=list, max_length=3)
 
     @model_validator(mode="after")
     def validate_action_payload(self) -> "QueryDecision":
         if self.action == "search":
-            if self.standalone_query is None or not self.standalone_query.strip():
+            if self.include_internal and (self.standalone_query is None or not self.standalone_query.strip()):
                 raise ValueError("search requires standalone_query")
-            self.standalone_query = self.standalone_query.strip()
+            if not self.include_internal and not self.external_parts:
+                raise ValueError("search requires at least one question part")
+            if len({part.route for part in self.external_parts}) != len(self.external_parts):
+                raise ValueError("Each external route can run at most once")
+            if any(part.route == "clarify" and not part.clarification for part in self.external_parts):
+                raise ValueError("An ambiguous part requires clarification")
+            self.standalone_query = self.standalone_query.strip() if self.standalone_query else None
             self.clarification = None
             if self.scope == "inventory" and self.major_queries:
                 raise ValueError("Inventory cannot include individual major queries")
@@ -113,6 +150,8 @@ class QueryProcessingResult:
     scope: Literal["answer", "compare", "inventory"] = "answer"
     major_queries: tuple[MajorQuery, ...] = ()
     comparison_criteria: tuple[str, ...] = ()
+    include_internal: bool = True
+    external_parts: tuple[ExternalPart, ...] = ()
 
 
 def query_processing_config() -> dict[str, object]:

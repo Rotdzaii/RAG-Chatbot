@@ -111,7 +111,7 @@ class QuestionProgressTests(unittest.TestCase):
         response = self.client.post("/questions/stream", json=self.payload())
         self.assertEqual(response.status_code, 200)
         self.assertIn("text/event-stream", response.headers["content-type"])
-        self.assertEqual(response.headers["cache-control"], "no-cache, no-transform")
+        self.assertEqual(response.headers["cache-control"], "no-store, no-cache, no-transform")
         self.assertEqual(response.headers["x-accel-buffering"], "no")
         self.assertEqual(self.count(), 2)
 
@@ -180,10 +180,13 @@ class QuestionProgressTests(unittest.TestCase):
         async def run():
             response = await stream_question(ProgressQuestionRequest(**payload), AuthenticatedUser(self.user))
             iterator = response.body_iterator
-            while not entered.is_set():
-                await iterator.__anext__()
-            await iterator.aclose()
-            release.set()
+            await iterator.__anext__()
+            try:
+                # A progress frame may arrive before the worker enters the model.
+                self.assertTrue(await asyncio.to_thread(entered.wait, 3))
+            finally:
+                await iterator.aclose()
+                release.set()
             self.assertTrue(await asyncio.to_thread(finished.wait, 3))
         with patch("rag.router.SessionLocal", side_effect=factory):
             asyncio.run(run())

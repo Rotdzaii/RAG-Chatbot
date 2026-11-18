@@ -95,3 +95,70 @@ test('file mock: unavailable or unauthorized originals show a safe error and pre
   await expect(page.locator('.reference-sources-list')).toContainText('legacy.txt')
   expect(mock.requests).toEqual([oldVersion])
 })
+
+test('live grounding preserves text and displays Search Suggestions, and reload expires the whole block', async ({ page, context }) => {
+  await fixture(page)
+  const url = 'https://grounding.example.test/weather?z=2&a=1'
+  const searchUrl = 'https://www.google.com/search?q=thoi+tiet'
+  const answer = 'Nội bộ [1].'
+  const text = '  Mưa rào.\nTrời mát.\n'
+  const expiry = 'Kết quả tra cứu web đã hết hạn khi xem lại cuộc trò chuyện.'
+  const source = { citation: 1, chunk_id: 'legacy', document_id: documentId, filename: 'legacy.pdf',
+    chunk_index: 0, cosine_distance: null }
+  let saved = false
+  await context.route(url, route => route.fulfill({ contentType: 'text/plain', body: 'Mock weather source' }))
+  await context.route(searchUrl, route => route.fulfill({ contentType: 'text/plain', body: 'Mock search results' }))
+  await page.route('**/questions/stream', route => {
+    saved = true
+    const { request_id } = route.request().postDataJSON()
+    return route.fulfill({ contentType: 'text/event-stream', body: 'event: result\ndata: ' + JSON.stringify({
+      request_id, response: {
+        answer, sources: [source], conversation_id: conversationId,
+        grounding: {
+          text, sources: [{ title: 'Bản tin thời tiết', url }],
+          search_suggestions_html: '<style>.chip { color: rgb(12, 34, 56); }</style>'
+            + '<a class="chip" href="' + searchUrl + '" target="_blank">Thời tiết hôm nay</a>',
+        },
+      },
+    }) + '\n\n' })
+  })
+  await page.route('**/conversations', route => route.fulfill({ json: saved ? [{
+    id: conversationId, title: 'Tra cứu hỗn hợp', is_pinned: false, created_at: stamp, updated_at: stamp,
+  }] : [] }))
+  await page.route('**/conversations/*/messages', route => route.fulfill({ json: [
+    { id: 'user', conversation_id: conversationId, role: 'user', content: 'Quy định và thời tiết', citations: null, created_at: stamp },
+    { id: 'assistant', conversation_id: conversationId, role: 'assistant', content: answer + '\n\n' + expiry,
+      created_at: stamp, citations: [source],
+    },
+  ] }))
+
+  await page.goto('/chat')
+  const input = page.getByRole('textbox', { name: 'Câu hỏi của bạn', exact: true })
+  await input.fill('Quy định và thời tiết')
+  await input.press('Enter')
+  const turn = page.locator('.chat-turn')
+  const grounding = turn.getByRole('region', { name: 'Thông tin cập nhật từ Google Search' })
+  await expect(grounding).toBeVisible()
+  expect(await grounding.locator('p').textContent()).toBe(text)
+  await expect(grounding.locator('iframe')).toHaveCount(0)
+  await expect(turn.getByText('legacy.pdf')).toBeVisible()
+  const suggestion = grounding.getByRole('link', { name: 'Thời tiết hôm nay', exact: true })
+  await expect(suggestion).toBeVisible()
+  await expect(suggestion).toHaveCSS('color', 'rgb(12, 34, 56)')
+  for (const [link, destination, body] of [
+    [grounding.getByRole('link', { name: 'Bản tin thời tiết' }), url, 'Mock weather source'],
+    [suggestion, searchUrl, 'Mock search results'],
+  ] as const) {
+    const opened = page.waitForEvent('popup')
+    await link.click()
+    const popup = await opened
+    await expect(popup).toHaveURL(destination)
+    await expect(popup.locator('body')).toHaveText(body)
+    await popup.close()
+  }
+  await page.reload()
+  await page.getByRole('button', { name: 'Tra cứu hỗn hợp', exact: true }).click()
+  await expect(turn.getByText('legacy.pdf')).toBeVisible()
+  await expect(turn.getByText(expiry)).toBeVisible()
+  await expect(grounding).toHaveCount(0)
+})

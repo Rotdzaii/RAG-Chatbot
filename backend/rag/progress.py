@@ -9,7 +9,7 @@ from uuid import UUID, uuid5
 
 from sqlalchemy import text
 
-Stage = Literal["query", "retrieval", "generation", "validation"]
+Stage = Literal["query", "retrieval", "generation", "web_search", "validation"]
 
 
 class QuestionCancelled(Exception):

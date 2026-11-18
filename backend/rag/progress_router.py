@@ -76,5 +76,5 @@ async def stream_question(request: ProgressQuestionRequest,
             task.cancel()
 
     return StreamingResponse(events(), media_type="text/event-stream", headers={
-        "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no",
+        "Cache-Control": "no-store, no-cache, no-transform", "X-Accel-Buffering": "no",
     })

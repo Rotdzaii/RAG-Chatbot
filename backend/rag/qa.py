@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 import re
 from typing import Literal, Sequence
 from uuid import UUID
@@ -7,16 +7,23 @@ from langchain_core.documents import Document
 from sqlalchemy.orm import Session
 
 from rag.citations import cited_source_indices
-from rag.langchain_pipeline import build_rag_pipeline
+from rag.external_answers import WEB_UNAVAILABLE, GroundedResult, general_answer, web_answer
+from rag.langchain_pipeline import NO_CONTEXT_MESSAGE, build_rag_pipeline
 from rag.major_answers import answer_by_major
 from rag.major_catalog import MajorCatalog, major_key, read_major_catalog
 from rag.qa_diagnostics import QuestionDiagnostics, observe_search
-from rag.query_contract import HistoryMessage, MajorQuery, QueryProcessingResult
+from rag.query_contract import WEB_ANSWER_LABEL, HistoryMessage, MajorQuery, QueryProcessingResult
 from rag.query_processing import process_query
 from rag.retrieval import RetrievedChunk
 from rag.tracing import LangChainTraceHandler
 from rag.progress import notify
 from rag.source_metadata import RetrievalFilters
+
+_INTERNAL_REFERENCE = re.compile(
+    r"\b(?:vlu|(?:đại học )?văn lang|trường (?:mình|ta|em|tôi)|"
+    r"(?:kho|tài liệu) (?:nội bộ|đã tải lên|của tôi)|(?:tài liệu|ngành) (?:này|đó|ấy|trên))\b", re.I,
+)
+_EXTERNAL_CLARIFICATION = "Bạn có thể nêu riêng câu hỏi ngoài kho và cho biết rõ đối tượng cần tra cứu không?"
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,10 +37,10 @@ class QuestionAnswer:
     # None keeps compatibility with callers constructing QuestionAnswer directly.
     # Production answers set this to the references actually present in the text.
     cited_source_indices: tuple[int, ...] | None = None
+    grounding: GroundedResult | None = None
 
 
 def _clarification(result: QueryProcessingResult, text: str) -> QuestionAnswer:
-    notify("validation")
     return QuestionAnswer(
         answer=text, sources=[], history_used=result.history_used,
         query_processing_action="clarify", query_processing_elapsed_ms=result.elapsed_ms,
@@ -73,8 +80,6 @@ def answer_question(
     filters: RetrievalFilters | None = None,
     diagnostics: QuestionDiagnostics | None = None,
 ) -> QuestionAnswer:
-    from config import settings
-
     notify("query")
     query_result = process_query(question, history)
     if diagnostics is not None:
@@ -84,11 +89,71 @@ def answer_question(
             "standalone_query": query_result.standalone_query,
             "major_queries": [part.model_dump() for part in query_result.major_queries],
             "comparison_criteria": list(query_result.comparison_criteria),
+            "include_internal": query_result.include_internal,
+            "external_parts": [part.model_dump() for part in query_result.external_parts],
         }
     if query_result.action == "clarify":
         if query_result.clarification is None:
             raise ValueError("Clarification result is missing clarification text")
-        return _clarification(query_result, query_result.clarification)
+        result = _clarification(query_result, query_result.clarification)
+    elif query_result.external_parts:
+        result = _answer_routed(session, question, query_result, top_k, history, filters, diagnostics)
+    else:
+        result = _answer_internal(session, question, query_result, top_k, history, filters, diagnostics)
+    notify("validation")
+    return result
+
+
+def _answer_routed(
+    session: Session, question: str, plan: QueryProcessingResult, top_k: int,
+    history: Sequence[HistoryMessage], filters: RetrievalFilters | None,
+    diagnostics: QuestionDiagnostics | None,
+) -> QuestionAnswer:
+    # Public routing is only allowed for verbatim excerpts of the current turn.
+    # An internal reference in a purportedly public-only turn stays inside RAG.
+    if not plan.include_internal and (
+        _INTERNAL_REFERENCE.search(question) or plan.major_queries or plan.scope != "answer"
+    ):
+        return _answer_internal(session, question, replace(plan, standalone_query=question),
+                                top_k, history, filters, diagnostics)
+
+    internal = None
+    sections = []
+    if plan.include_internal:
+        internal = _answer_internal(session, question, plan, top_k, history, filters, diagnostics)
+        sections.append(f"**Tài liệu nội bộ VLU**\n\n{internal.answer}")
+    base = internal or QuestionAnswer("", [], history_used=plan.history_used,
+                                      query_processing_elapsed_ms=plan.elapsed_ms, cited_source_indices=())
+    grounding = None
+    for part in plan.external_parts:
+        valid_excerpt = part.question in question and not _INTERNAL_REFERENCE.search(part.question)
+        if not valid_excerpt or part.route == "clarify":
+            answer = (part.clarification if valid_excerpt else None) or _EXTERNAL_CLARIFICATION
+            try:
+                cited_source_indices(answer, 0)
+            except ValueError:
+                answer = _EXTERNAL_CLARIFICATION
+            if len(plan.external_parts) == 1 and internal is None:
+                return _clarification(plan, answer)
+            label = "Cần làm rõ"
+        elif part.route == "general":
+            label, answer = "Kiến thức chung", general_answer(part.question)
+        else:
+            grounding = web_answer(part.question)
+            if grounding is not None:
+                continue
+            label = WEB_ANSWER_LABEL
+            answer = WEB_UNAVAILABLE
+        sections.append(f"**{label}**\n\n{answer}")
+    return replace(base, answer="\n\n".join(sections), grounding=grounding)
+
+
+def _answer_internal(
+    session: Session, question: str, query_result: QueryProcessingResult, top_k: int,
+    history: Sequence[HistoryMessage], filters: RetrievalFilters | None,
+    diagnostics: QuestionDiagnostics | None,
+) -> QuestionAnswer:
+    from config import settings
 
     standalone = query_result.standalone_query
     if standalone is None:
@@ -132,11 +197,13 @@ def answer_question(
                 observation.record_selection({doc.metadata["chunk_id"]: i for i, doc in enumerate(result["documents"], 1)})
         answer = result["answer"]
         sources = _as_sources(result["documents"])
-    notify("validation")
+    citations = cited_source_indices(answer, len(sources))
+    if not citations and query_result.scope == "answer" and not parts:
+        answer = NO_CONTEXT_MESSAGE
     return QuestionAnswer(
         answer=answer, sources=sources, history_used=query_result.history_used,
         query_processing_elapsed_ms=query_result.elapsed_ms, rewritten_query=standalone,
-        cited_source_indices=cited_source_indices(answer, len(sources)),
+        cited_source_indices=citations,
     )
 
 

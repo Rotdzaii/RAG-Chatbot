@@ -10,6 +10,7 @@ from auth import AuthenticatedUser, get_authenticated_user
 from database import SessionLocal
 from rag.conversations import (
     delete_owned_conversation,
+    expire_legacy_grounding,
     list_owned_conversations,
     list_owned_messages,
     update_owned_conversation,
@@ -198,7 +199,13 @@ def get_conversation_messages(
         )
         if messages is None:
             raise HTTPException(status_code=404, detail="Conversation not found")
-        return [MessageItem.model_validate(item) for item in messages]
+        cleaned = False
+        for message in messages:
+            cleaned |= expire_legacy_grounding(message)
+        result = [MessageItem.model_validate(item) for item in messages]
+        if cleaned:
+            session.commit()
+        return result
     except SQLAlchemyError as error:
         raise _unavailable(error) from error
     finally:
