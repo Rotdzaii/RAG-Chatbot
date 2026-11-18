@@ -20,7 +20,7 @@ export type QuestionSource = {
   chunk_index: number
   page_start?: number | null
   page_end?: number | null
-  cosine_distance: number
+  cosine_distance: number | null
 }
 
 export type QuestionResponse = {

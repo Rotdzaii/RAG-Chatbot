@@ -13,7 +13,7 @@ from langchain_core.runnables import (
 from langchain_core.runnables.config import RunnableConfig
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai.chat_models import GoogleRateLimitError
-from pydantic import SecretStr
+from pydantic import BaseModel, Field, SecretStr
 from sqlalchemy.orm import Session
 
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
@@ -49,12 +49,14 @@ def _get_chat_model() -> ChatGoogleGenerativeAI:
     )
 
 
-def _format_documents(documents: list[Document]) -> str:
+def format_documents(
+    documents: list[Document], first_citation: int = 1, *, character_limit: int | None = None,
+) -> str:
     return "\n\n".join(
         f"[{number}]\nFilename: {document.metadata['filename']}\n"
         f"Chunk index: {document.metadata['chunk_index']}\n"
-        f"Content:\n{document.page_content}"
-        for number, document in enumerate(documents, start=1)
+        f"Content:\n{document.page_content[:character_limit]}"
+        for number, document in enumerate(documents, start=first_citation)
     )
 
 
@@ -83,19 +85,18 @@ def _invoke_generation_model(
         raise wrapped from error
 
 
-def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
-    model = _get_chat_model().with_config(
+class ComparisonColumn(BaseModel):
+    cells: list[str] = Field(description="One short answer per criterion, in order. Cite the supplied "
+                             "block numbers in each cell. Use an empty string for insufficient evidence.")
+
+
+def _prompt_and_generate(model: Runnable) -> Runnable:
+    model = model.with_config(
         run_name="gemini_answer_generation",
         tags=["rag", "generation"],
     )
     return (
-        RunnablePassthrough.assign(
-            context=RunnableLambda(
-                lambda state: _format_documents(state["documents"]),
-                name="format_numbered_context",
-            )
-        )
-        | ANSWER_PROMPT.with_config(
+        ANSWER_PROMPT.with_config(
             run_name="grounded_answer_prompt",
             tags=["rag", "prompt"],
         )
@@ -105,12 +106,31 @@ def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
             ),
             name="invoke_generation_model",
         )
+    )
+
+
+def grounded_comparison_chain() -> Runnable:
+    return _prompt_and_generate(_get_chat_model().with_structured_output(ComparisonColumn))
+
+
+def grounded_answer_chain() -> Runnable[dict[str, Any], str]:
+    return (
+        _prompt_and_generate(_get_chat_model())
         | StrOutputParser().with_config(
             run_name="parse_model_answer",
             tags=["rag", "generation"],
         )
         | RunnableLambda(_require_answer, name="validate_model_answer")
     ).with_config(run_name="generate_grounded_answer", tags=["rag", "generation"])
+
+
+def _generation_chain(_: dict[str, Any]) -> Runnable[dict[str, Any], str]:
+    return RunnablePassthrough.assign(
+        context=RunnableLambda(
+            lambda state: format_documents(state["documents"]),
+            name="format_numbered_context",
+        )
+    ) | grounded_answer_chain()
 
 
 def build_rag_pipeline(

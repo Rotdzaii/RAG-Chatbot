@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from langchain_core.callbacks import CallbackManagerForRetrieverRun
 from langchain_core.documents import Document
 from langchain_core.retrievers import BaseRetriever
@@ -15,6 +17,7 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
     session: Session
     top_k: int = Field(default=5, ge=1, le=20)
     filters: RetrievalFilters | None = None
+    subject_headers: tuple[UUID, ...] | None = None
 
     def _get_relevant_documents(
         self,
@@ -26,6 +29,7 @@ class SQLAlchemyVectorRetriever(BaseRetriever):
         chunks = retrieve_chunks(
             self.session, query, top_k=self.top_k,
             **({"filters": self.filters} if self.filters is not None else {}),
+            **({"subject_headers": self.subject_headers} if self.subject_headers is not None else {}),
         )
         return [
             Document(

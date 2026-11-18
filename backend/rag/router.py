@@ -60,7 +60,7 @@ class QuestionSource(BaseModel):
     chunk_index: int
     page_start: int | None = None
     page_end: int | None = None
-    cosine_distance: float
+    cosine_distance: float | None
 
 
 class QuestionResponse(BaseModel):
