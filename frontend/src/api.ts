@@ -23,10 +23,17 @@ export type QuestionSource = {
   cosine_distance: number | null
 }
 
+export type GroundedResult = {
+  text: string
+  sources: { title: string; url: string }[]
+  search_suggestions_html: string
+}
+
 export type QuestionResponse = {
   answer: string
   sources: QuestionSource[]
   conversation_id: string
+  grounding?: GroundedResult
 }
 
 export type ConversationApiItem = {
@@ -217,7 +224,7 @@ export async function askQuestion(
   return response.json() as Promise<QuestionResponse>
 }
 
-export type QuestionStage = 'query' | 'retrieval' | 'generation' | 'validation'
+export type QuestionStage = 'query' | 'retrieval' | 'generation' | 'web_search' | 'validation'
 
 export async function getOriginalSourceFile(
   accessToken: string | undefined,
@@ -255,7 +262,7 @@ export async function askQuestionWithProgress(
         if (!payload) continue
         const data = JSON.parse(payload) as Record<string, unknown>
         if (data.request_id !== requestId) throw new ApiNetworkError()
-        if (event === 'progress' && ['query', 'retrieval', 'generation', 'validation'].includes(String(data.stage))) onProgress(data.stage as QuestionStage)
+        if (event === 'progress' && ['query', 'retrieval', 'generation', 'web_search', 'validation'].includes(String(data.stage))) onProgress(data.stage as QuestionStage)
         if (event === 'error') {
           const status = Number(data.status)
           if (status === 401) throw new QuestionAuthenticationError()

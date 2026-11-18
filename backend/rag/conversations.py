@@ -9,11 +9,34 @@ from rag.query_contract import (
     HISTORY_MAX_CHARACTERS,
     HISTORY_MAX_MESSAGES,
     HISTORY_MAX_TURNS,
+    WEB_ANSWER_LABEL,
     HistoryMessage,
 )
 
 
 AUTO_TITLE_MAX_LENGTH = 80
+GROUNDING_EXPIRED = "Kết quả tra cứu web đã hết hạn khi xem lại cuộc trò chuyện."
+
+
+def expire_grounded_text(answer: str) -> str:
+    return f"{answer}\n\n{GROUNDING_EXPIRED}" if answer else GROUNDING_EXPIRED
+
+
+def expire_legacy_grounding(message: Message) -> bool:
+    """Discard persisted grounding from the earlier combined answer format."""
+    citations = getattr(message, "citations", None) or []
+    if message.role != "assistant" or not any(
+        isinstance(source, dict) and source.get("kind") == "web" for source in citations
+    ):
+        return False
+    prefix, marker, _ = message.content.partition(f"**{WEB_ANSWER_LABEL}**\n\n")
+    message.content = expire_grounded_text(prefix.rstrip() if marker else "")
+    message.citations = [
+        source for source in citations if isinstance(source, dict) and source.get("kind") != "web"
+    ]
+    return True
+
+
 def create_title_from_question(question: str) -> str:
     normalized = " ".join(question.split())
     if len(normalized) <= AUTO_TITLE_MAX_LENGTH:
@@ -78,11 +101,16 @@ def list_recent_owned_messages(
         .limit(max_messages)
     )
     newest_first = list(session.scalars(statement))[:max_messages]
-    messages = [
-        HistoryMessage(role=message.role, content=message.content)
-        for message in reversed(newest_first)
-        if message.role in {"user", "assistant"} and message.content.strip()
-    ]
+    messages = []
+    for message in reversed(newest_first):
+        if message.role not in {"user", "assistant"}:
+            continue
+        expire_legacy_grounding(message)
+        content = message.content
+        if message.role == "assistant" and content.endswith(GROUNDING_EXPIRED):
+            content = content.removesuffix(GROUNDING_EXPIRED).rstrip()
+        if content.strip():
+            messages.append(HistoryMessage(role=message.role, content=content))
 
     while len(messages) > 2 and sum(len(item.content) for item in messages) > max_characters:
         remove_count = (

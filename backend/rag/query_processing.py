@@ -6,6 +6,7 @@ import time
 import unicodedata
 from typing import Sequence
 
+from google.genai.errors import APIError
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_google_genai._common import GoogleGenerativeAIError
@@ -77,7 +78,7 @@ def _error_category(error: BaseException) -> str:
         return "timeout"
     if any(isinstance(item, ValidationError) for item in chain):
         return "schema_validation"
-    if any(isinstance(item, GoogleGenerativeAIError) for item in chain):
+    if any(isinstance(item, (APIError, GoogleGenerativeAIError)) for item in chain):
         return "provider"
     return "unknown"
 
@@ -122,7 +123,7 @@ def process_query(
             if isinstance(raw_decision, QueryDecision)
             else QueryDecision.model_validate(raw_decision)
         )
-    except (GoogleGenerativeAIError, RuntimeError, ValueError, TimeoutError) as error:
+    except (APIError, GoogleGenerativeAIError, RuntimeError, ValueError, TimeoutError) as error:
         elapsed_ms = (time.perf_counter() - started_at) * 1000
         category = _error_category(error)
         error_kind = provider_error_kind(error)
@@ -165,4 +166,6 @@ def process_query(
         scope=decision.scope,
         major_queries=tuple(decision.major_queries),
         comparison_criteria=tuple(decision.comparison_criteria),
+        include_internal=decision.include_internal,
+        external_parts=tuple(decision.external_parts),
     )

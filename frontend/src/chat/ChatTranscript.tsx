@@ -3,11 +3,13 @@ import type { QuestionSource } from '../api'
 import type { ChatTurn } from './types'
 import { formatSourceLocator } from './sourceLocator'
 import { groupCitedSources } from './citedSources'
+import { GoogleGrounding } from './GoogleGrounding'
 import type { QuestionStage } from '../api'
 
 const progressLabels: Record<QuestionStage | 'sending', string> = {
   sending: 'Đang gửi câu hỏi…', query: 'Đang xử lý câu hỏi…', retrieval: 'Đang tìm tài liệu…',
   generation: 'Đang soạn câu trả lời…', validation: 'Đang hoàn tất câu trả lời…',
+  web_search: 'Đang xác minh thông tin trên web…',
 }
 
 const AnswerMarkdown = lazy(() => import('./AnswerMarkdown'))
@@ -72,12 +74,13 @@ export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry,
               )}
               {turn.status === 'complete' && (
                 <div className={revealTurnId === turn.id ? 'answer-reveal' : undefined} onAnimationEnd={onRevealEnd}>
-                  <div className="message-text answer-content">
+                  {turn.response.answer && <div className="message-text answer-content">
                     <Suspense fallback={<p>{turn.response.answer}</p>}>
                       <AnswerMarkdown answer={turn.response.answer} />
                     </Suspense>
-                  </div>
+                  </div>}
                   <AnswerSources answer={turn.response.answer} sources={turn.response.sources} />
+                  {turn.response.grounding && <GoogleGrounding result={turn.response.grounding} />}
                 </div>
               )}
               {turn.status === 'error' && (

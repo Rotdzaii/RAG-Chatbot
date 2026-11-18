@@ -3,7 +3,8 @@ from datetime import datetime, timedelta, timezone
 from typing import Annotated
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
+from google.genai.errors import APIError
 from langchain_google_genai._common import GoogleGenerativeAIError
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy.exc import SQLAlchemyError
@@ -12,10 +13,13 @@ from auth import AuthenticatedUser, get_authenticated_user, require_admin
 from database import SessionLocal
 from rag.conversations import (
     create_title_from_question,
+    expire_grounded_text,
+    expire_legacy_grounding,
     get_owned_conversation,
     list_recent_owned_messages,
     update_owned_conversation,
 )
+from rag.external_answers import GroundedResult
 from rag.ingestion import ingest_document
 from rag.ocr import OCRFailed, OCRUnavailable
 from rag.models import Conversation, Message
@@ -67,12 +71,14 @@ class QuestionResponse(BaseModel):
     answer: str
     sources: list[QuestionSource]
     conversation_id: UUID
+    grounding: GroundedResult | None = Field(default=None, exclude_if=lambda value: value is None)
 
 
 @router.post("/questions", response_model=QuestionResponse)
 def answer_question_request(
     request: QuestionRequest,
     authenticated_user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
+    http_response: Response = None,
 ) -> QuestionResponse:
     session = SessionLocal()
     guard = ExitStack()
@@ -88,11 +94,16 @@ def answer_question_request(
                 if owned is None or user_message is None or user_message.citations != expected:
                     raise HTTPException(status_code=409, detail="Question request does not match")
                 notify("validation")
-                return QuestionResponse(
+                cleaned = expire_legacy_grounding(saved)
+                replay = QuestionResponse(
                     answer=saved.content,
                     sources=saved.citations or [],
                     conversation_id=saved.conversation_id,
                 )
+                if cleaned:
+                    check_connected()
+                    session.commit()
+                return replay
         conversation = None
         if request.conversation_id is not None:
             conversation = get_owned_conversation(
@@ -142,7 +153,6 @@ def answer_question_request(
                 or citation in result.cited_source_indices
             )
         ]
-
         user_message_time = datetime.now(timezone.utc)
         assistant_message_time = user_message_time + timedelta(microseconds=1)
         if conversation is None:
@@ -180,7 +190,7 @@ def answer_question_request(
                     id=message_id(authenticated_user.id, "assistant") or uuid4(),
                     conversation_id=conversation.id,
                     role="assistant",
-                    content=result.answer,
+                    content=expire_grounded_text(result.answer) if result.grounding else result.answer,
                     citations=[source.model_dump(mode="json") for source in sources],
                     created_at=assistant_message_time,
                 ),
@@ -190,7 +200,10 @@ def answer_question_request(
             answer=result.answer,
             sources=sources,
             conversation_id=conversation.id,
+            grounding=result.grounding,
         )
+        if http_response is not None and result.grounding:
+            http_response.headers["Cache-Control"] = "no-store"
         check_connected()
         session.commit()
         return response
@@ -206,7 +219,9 @@ def answer_question_request(
         ) from error
     except (
         SQLAlchemyError,
+        APIError,
         GoogleGenerativeAIError,
+        TimeoutError,
         RuntimeError,
         ValueError,
     ) as error:
