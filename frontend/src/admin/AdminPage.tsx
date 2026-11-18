@@ -45,17 +45,17 @@ function AdminWorkspace({ token, onFailure }: { token: string; onFailure: (error
       <Link className="admin-brand" to="/" aria-label="Đại học Văn Lang, trang chủ"><img src={vluLogo} width="154" alt="Đại học Văn Lang" /></Link>
       <p className="admin-sidebar-title">Quản trị tri thức</p>
       <nav aria-label="Điều hướng quản trị">
-        <NavLink to="/admin/sources"><span aria-hidden="true">▤</span>Quản lý nguồn</NavLink>
+        <NavLink to="/admin/sources"><span aria-hidden="true">▤</span>Quản lý tài liệu</NavLink>
       </nav>
       <div className="admin-sidebar-footer"><AccountControl /></div>
     </aside>
-    <div className="admin-main-wrap"><header className="admin-topbar"><button ref={menuTrigger} className="admin-more-button admin-mobile-menu" aria-label="Mở điều hướng" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>☰</button><span>Quản trị / <strong>Quản lý nguồn</strong></span><span className="admin-topbar-brand">VLU · RAG Chatbot</span></header>
+    <div className="admin-main-wrap"><header className="admin-topbar"><button ref={menuTrigger} className="admin-more-button admin-mobile-menu" aria-label="Mở điều hướng" aria-haspopup="dialog" aria-expanded={menuOpen} onClick={() => setMenuOpen(true)}>☰</button><span>Quản trị / <strong>Quản lý tài liệu</strong></span><span className="admin-topbar-brand">VLU · RAG Chatbot</span></header>
       <main ref={panel} id="admin-main" tabIndex={-1} className="admin-main">
         <SourceManager token={token} onFailure={onFailure} />
       </main>
     </div>
     {menuOpen && <dialog ref={mobileMenu} className="admin-nav-dialog" aria-label="Điều hướng quản trị" onCancel={event => { event.preventDefault(); setMenuOpen(false) }} onClick={event => { if (event.target === event.currentTarget) setMenuOpen(false) }}>
-      <div className="admin-sidebar"><div className="admin-nav-header"><img src={vluLogo} width="145" alt="Đại học Văn Lang" /><button className="admin-more-button" aria-label="Đóng điều hướng" onClick={() => setMenuOpen(false)}>×</button></div><p className="admin-sidebar-title">Quản trị tri thức</p><nav aria-label="Điều hướng quản trị"><NavLink to="/admin/sources" onClick={() => setMenuOpen(false)}>Quản lý nguồn</NavLink></nav><div className="admin-sidebar-footer"><AccountControl /></div></div>
+      <div className="admin-sidebar"><div className="admin-nav-header"><img src={vluLogo} width="145" alt="Đại học Văn Lang" /><button className="admin-more-button" aria-label="Đóng điều hướng" onClick={() => setMenuOpen(false)}>×</button></div><p className="admin-sidebar-title">Quản trị tri thức</p><nav aria-label="Điều hướng quản trị"><NavLink to="/admin/sources" onClick={() => setMenuOpen(false)}>Quản lý tài liệu</NavLink></nav><div className="admin-sidebar-footer"><AccountControl /></div></div>
     </dialog>}
   </div>
 }

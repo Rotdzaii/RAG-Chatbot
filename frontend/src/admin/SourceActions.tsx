@@ -22,13 +22,13 @@ export function SourceActions({ source, busy, onAction }: {
   const items: [SourceAction, string][] = [
     ['details', 'Xem chi tiết'],
   ]
-  if (source.source_type === 'url') items.push(['original', 'Mở URL gốc'])
+  if (source.source_type === 'url') items.push(['original', 'Mở trang gốc'])
   items.push(
-    ['metadata', 'Sửa thông tin'], [source.source_type === 'file' ? 'replace' : 'refresh', source.source_type === 'file' ? 'Thay file' : 'Cập nhật URL'],
-    ['status', source.is_active ? 'Tắt nguồn' : 'Bật nguồn'], ['delete', 'Xóa nguồn'],
+    ['metadata', 'Sửa thông tin'], [source.source_type === 'file' ? 'replace' : 'refresh', source.source_type === 'file' ? 'Thay file' : 'Cập nhật từ liên kết'],
+    ['status', source.is_active ? 'Tạm ngưng sử dụng' : 'Cho phép sử dụng'], ['delete', 'Xóa tài liệu'],
   )
   return <>
-    <button ref={trigger} type="button" className="admin-more-button" aria-label={`Thao tác với ${source.filename}`} aria-haspopup="menu" aria-expanded={expanded} popoverTarget={id} disabled={busy}
+    <button ref={trigger} type="button" className="admin-more-button" title={`Thao tác với ${source.filename}`} aria-label={`Thao tác với ${source.filename}`} aria-haspopup="menu" aria-expanded={expanded} popoverTarget={id} disabled={busy}
       onClick={event => {
         event.preventDefault()
         if (menu.current!.matches(':popover-open')) { menu.current!.hidePopover(); return }
@@ -51,7 +51,7 @@ export function SourceActions({ source, busy, onAction }: {
           buttons[next].focus()
         }
       }}>
-      {items.map(([action, label]) => <button key={action} type="button" role="menuitem" className={action === 'delete' ? 'admin-menu-danger' : undefined} onClick={() => {
+      {items.map(([action, label]) => <button key={action} type="button" role="menuitem" title={label} className={action === 'delete' ? 'admin-menu-danger' : undefined} onClick={() => {
         menu.current?.hidePopover(); trigger.current?.focus(); onAction(action, source)
       }}>{label}</button>)}
     </div>
