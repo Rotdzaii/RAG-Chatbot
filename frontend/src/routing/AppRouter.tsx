@@ -1,5 +1,6 @@
-import { Navigate, Route, Routes } from 'react-router'
-import { lazy, Suspense } from 'react'
+import { Link, Navigate, Outlet, Route, Routes } from 'react-router'
+import { lazy, Suspense, useEffect } from 'react'
+import vluLogo from '../assets/vlu-logo.svg'
 import App from '../App'
 import { AuthGate } from '../auth/AuthGate'
 import { LoginPage } from '../auth/LoginPage'
@@ -12,13 +13,33 @@ import { AccessFeedback } from '../auth/AccessFeedback'
 
 const AdminPage = lazy(() => import('../admin/AdminPage').then(module => ({ default: module.AdminPage })))
 
-function AdminRoute() {
-  return <AuthGate access="protected"><Suspense fallback={<AuthLoadingScreen />}><AdminPage /></Suspense></AuthGate>
+function AdminArea() {
+  useEffect(() => {
+    const previousTitle = document.title
+    document.title = 'Quản trị · Văn Lang'
+    return () => { document.title = previousTitle }
+  }, [])
+
+  return <Outlet />
+}
+
+function AdminRoute({ section }: { section: 'overview' | 'sources' }) {
+  return <AuthGate access="protected"><Suspense fallback={<AuthLoadingScreen />}><AdminPage section={section} /></Suspense></AuthGate>
+}
+
+function AdminNotFound() {
+  return <div className="access-feedback">
+    <img src={vluLogo} width="148" alt="Đại học Văn Lang" />
+    <main>
+      <h1>Không tìm thấy trang</h1>
+      <Link to="/admin">Về trang Tổng quan</Link>
+    </main>
+  </div>
 }
 
 function ChatRoute() {
   const { status } = useAdminAccess()
-  if (status === 'admin') return <Navigate to="/admin/sources" replace />
+  if (status === 'admin') return <Navigate to="/admin" replace />
   if (status !== 'user') return <AccessFeedback />
   return <App />
 }
@@ -49,9 +70,12 @@ export function AppRouter() {
           </AuthGate>
         )}
       />
-      <Route path="/admin" element={<Navigate to="/admin/sources" replace />} />
-      <Route path="/admin/sources" element={<AdminRoute />} />
-      <Route path="/admin/notifications" element={<Navigate to="/admin/sources" replace />} />
+      <Route path="/admin" element={<AdminArea />}>
+        <Route index element={<AdminRoute section="overview" />} />
+        <Route path="sources" element={<AdminRoute section="sources" />} />
+        <Route path="notifications" element={<Navigate to="/admin/sources" replace />} />
+        <Route path="*" element={<AdminNotFound />} />
+      </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   )
