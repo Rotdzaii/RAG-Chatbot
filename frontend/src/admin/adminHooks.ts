@@ -1,7 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { adminError } from './adminApi'
 
-export function useAdminResource<T>(key: string, load: (signal: AbortSignal) => Promise<T>, onFailure: (error: unknown) => void): { loading: boolean; data?: T; error?: string } {
+export function useAdminResource<T>(
+  key: string,
+  load: (signal: AbortSignal) => Promise<T>,
+  onFailure: (error: unknown) => void,
+  formatError = adminError,
+): { loading: boolean; data?: T; error?: string } {
   const [result, setResult] = useState<{ key: string; data?: T; error?: string }>()
   useEffect(() => {
     const controller = new AbortController()
@@ -10,10 +15,10 @@ export function useAdminResource<T>(key: string, load: (signal: AbortSignal) => 
     }).catch((error: unknown) => {
       if (controller.signal.aborted) return
       onFailure(error)
-      setResult({ key, error: adminError(error) })
+      setResult({ key, error: formatError(error) })
     })
     return () => controller.abort()
-  }, [key, load, onFailure])
+  }, [key, load, onFailure, formatError])
   return result?.key === key ? { ...result, loading: false } : { loading: true }
 }
 

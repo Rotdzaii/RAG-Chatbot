@@ -18,6 +18,35 @@ export type KnowledgeSource = {
 
 export type SourcePage = { items: KnowledgeSource[]; total: number; limit: number; offset: number }
 
+export type StatisticsRange = { from: string; to: string }
+export type StatisticsOutcome = 'answered' | 'partial' | 'insufficient_evidence' | 'clarification' | 'unavailable' | 'error'
+export type StatisticsMeasure = { count: number | null; ratio: number | null }
+export type AdminStatistics = {
+  start_date: string
+  end_date: string
+  timezone: string
+  data_started_at: string | null
+  outcome_denominator: number
+  unclassified: number
+  running: number
+  cancelled: number
+  by_outcome: Record<StatisticsOutcome, StatisticsMeasure>
+  by_executed_route: Record<'internal' | 'general' | 'web' | 'mixed' | 'none', StatisticsMeasure>
+  cited_answer_denominator: number
+  ranked_documents: {
+    document_id: string
+    filename: string | null
+    deleted: boolean
+    count: number
+    ratio: number | null
+  }[]
+}
+
+export async function getStatistics(token: string, range: StatisticsRange, signal: AbortSignal): Promise<AdminStatistics> {
+  const params = new URLSearchParams(range)
+  return (await authorizedRequest('/admin/statistics?' + params, token, { signal })).json()
+}
+
 export async function getSource(token: string, id: string, signal?: AbortSignal): Promise<KnowledgeSource> {
   return (await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(id)}`, token, { signal })).json()
 }

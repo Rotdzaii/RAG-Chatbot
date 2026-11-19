@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "test:chat": "playwright test tests/chat-progress.spec.ts tests/guest-chat.spec.ts tests/conversation-search.spec.ts",
     "test:source-files": "playwright test tests/source-files.spec.ts",
-    "test:admin": "playwright test tests/admin.spec.ts"
+    "test:admin": "playwright test tests/admin.spec.ts tests/admin-statistics.spec.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.109.0",

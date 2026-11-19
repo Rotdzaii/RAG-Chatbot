@@ -1,11 +1,22 @@
 import { expect } from '@playwright/test'
 import type { Page, Request } from '@playwright/test'
+import type { AdminStatistics } from '../src/admin/adminApi'
 
 const user = { id: '11111111-1111-4111-8111-111111111111', email: 'admin@example.test', aud: 'authenticated', role: 'authenticated', app_metadata: {}, user_metadata: {}, created_at: '2026-10-01T00:00:00Z' }
 const token = `${Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url')}.${Buffer.from(JSON.stringify({ sub: user.id, exp: 4102444800 })).toString('base64url')}.fixture`
 const session = { access_token: token, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_at: 4102444800, expires_in: 3600, user }
 const file = { is_active: true, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filename: 'Chương trình Marketing.pdf', mime_type: 'application/pdf', source_type: 'file', source_url: null, category: null as string | null, audience: null as string | null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-30T08:30:00Z', last_checked_at: null, chunk_count: 17 }
 const urlSource = { ...file, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', filename: 'Tài chính – Ngân hàng', source_type: 'url', source_url: 'https://www.vlu.edu.vn/academics/majors/tai-chinh-ngan-hang', mime_type: 'text/html', chunk_count: 26, last_checked_at: '2026-11-01T00:00:00Z' }
+const unmeasured = { count: null, ratio: null }
+const emptyStatistics: Omit<AdminStatistics, 'start_date' | 'end_date'> = {
+  timezone: 'Asia/Ho_Chi_Minh', data_started_at: null, outcome_denominator: 0, unclassified: 0, running: 0, cancelled: 0,
+  by_outcome: {
+    answered: unmeasured, partial: unmeasured, insufficient_evidence: unmeasured,
+    clarification: unmeasured, unavailable: unmeasured, error: unmeasured,
+  },
+  by_executed_route: { internal: unmeasured, general: unmeasured, web: unmeasured, mixed: unmeasured, none: unmeasured },
+  cited_answer_denominator: 0, ranked_documents: [],
+}
 
 async function fixture(page: Page, options: { auth?: boolean; denied?: number; empty?: boolean; many?: boolean } = {}) {
   const requests: Request[] = []
@@ -56,6 +67,12 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
       if (permissionError) { await route.fulfill({ status: permissionError, json: { detail: 'permission unavailable' } }); return }
     }
     if (options.denied && url.pathname.startsWith('/admin')) { await route.fulfill({ status: options.denied, json: { detail: 'denied' } }); return }
+    if (url.pathname === '/admin/statistics' && request.method() === 'GET') {
+      await route.fulfill({ json: {
+        ...emptyStatistics, start_date: url.searchParams.get('from'), end_date: url.searchParams.get('to'),
+      } })
+      return
+    }
     const isMutation = request.method() !== 'GET'
     if (isMutation && holdMutation) await holdMutation
     if (isMutation && mutationError) { await route.fulfill({ status: mutationError, json: { detail: 'private raw provider error' } }); return }
@@ -160,4 +177,4 @@ async function signIn(page: Page) {
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
 }
 
-export { fixture, file, urlSource, signIn }
+export { fixture, file, urlSource, signIn, emptyStatistics }
