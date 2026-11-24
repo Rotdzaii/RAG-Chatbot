@@ -15,7 +15,7 @@ from rag.source_file_router import router as source_file_router
 app = FastAPI(title="RAG Chatbot API")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "https://rag-chatbot-web-staging.onrender.com" ,],
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
