@@ -16,7 +16,7 @@ const AdminPage = lazy(() => import('../admin/AdminPage').then(module => ({ defa
 function AdminArea() {
   useEffect(() => {
     const previousTitle = document.title
-    document.title = 'Quản trị · Văn Lang'
+    document.title = 'VLU|Assistant - Admin'
     return () => { document.title = previousTitle }
   }, [])
 
