@@ -18,7 +18,7 @@ from sqlalchemy.dialects import postgresql
 from sqlalchemy.exc import SQLAlchemyError
 
 from rag.langchain_pipeline import GroundedAnswer
-from rag.admin_statistics import _citation_pairs
+from rag.admin_statistics import ADMIN_TIMEZONE, _citation_pairs
 from answer_fixture import GroundedModelStub
 from rag.models import Chunk, Conversation, Document, Message, QuestionTurn
 from rag.question_outcomes import Outcome, QuestionExecution, Resolution, combine_resolutions
@@ -184,6 +184,12 @@ class AdminStatisticsTests(unittest.TestCase):
         with self.db.sessions() as session:
             self.assertEqual(session.scalar(select(func.count()).select_from(QuestionTurn)), 2)
 
+    def test_empty_database_has_no_statistics(self):
+        database = self.db.client.get("/admin/statistics?from=2026-10-21&to=2026-11-20")
+        self.assertEqual(database.status_code, 200, database.text)
+        self.assertIsNone(database.json()["data_started_at"])
+        self.assertEqual(database.json()["outcome_denominator"], 0)
+
     def test_aggregation_deduplicates_citations_tracks_lifecycle_and_uses_local_day(self):
         document_id, gone = uuid4(), uuid4()
         conversation_id = uuid4()
@@ -201,10 +207,10 @@ class AdminStatisticsTests(unittest.TestCase):
             return row.id
 
         def turn(session, stamp, *, state="completed", outcome="answered", source=None,
-                 version=1, routes=("internal",)):
+                 version=1, routes=("internal",), finished_at=None):
             session.add(QuestionTurn(
                 user_id=self.db.admin, request_id=uuid4(), attempt_id=uuid4(), fingerprint="private fingerprint",
-                received_at=stamp, finished_at=None if state == "running" else stamp,
+                received_at=stamp, finished_at=None if state == "running" else finished_at or stamp,
                 state=state, outcome=outcome, planned_routes=list(routes), executed_routes=list(routes),
                 reasons=[], assistant_message_id=source, citation_version=version,
             ))
@@ -227,7 +233,7 @@ class AdminStatisticsTests(unittest.TestCase):
             excluded = message(session, at_end, [citation(document_id, "next day.pdf")])
             message(session, at_start, None)
             session.flush()
-            turn(session, at_start, source=first)
+            turn(session, at_start, source=first, finished_at=at_end)
             turn(session, middle, source=second, outcome="partial", routes=("general", "internal"))
             turn(session, middle, source=legacy, version=None, outcome=None)
             turn(session, at_end, source=excluded)
@@ -243,6 +249,7 @@ class AdminStatisticsTests(unittest.TestCase):
         self.assertEqual(report["data_started_at"], "2026-11-18T17:00:00Z")
         self.assertEqual((report["outcome_denominator"], report["unclassified"], report["running"], report["cancelled"]),
                          (3, 2, 1, 1))
+        self.assertEqual(report["daily_classified"], [{"date": "2026-11-19", "count": 3}])
         self.assertEqual(report["by_outcome"]["error"], {"count": 1, "ratio": 1 / 3})
         self.assertEqual(report["by_executed_route"]["mixed"]["count"], 1)
         self.assertEqual(report["by_executed_route"]["none"]["count"], 1)
@@ -255,6 +262,15 @@ class AdminStatisticsTests(unittest.TestCase):
             self.assertNotIn(private, response.text)
         old = self.db.client.get("/admin/statistics?from=2026-11-17&to=2026-11-18").json()
         self.assertEqual(old["by_outcome"]["error"], {"count": None, "ratio": None})
+        with patch("rag.admin_statistics.datetime", wraps=datetime) as clock:
+            clock.now.return_value = datetime(2026, 11, 21, 12, tzinfo=ADMIN_TIMEZONE)
+            multiple = self.db.client.get("/admin/statistics?from=2026-11-18&to=2026-11-23").json()
+        self.assertEqual(multiple["daily_classified"], [
+            {"date": "2026-11-18", "count": None}, {"date": "2026-11-19", "count": 3},
+            {"date": "2026-11-20", "count": 1}, {"date": "2026-11-21", "count": 0},
+            {"date": "2026-11-22", "count": None},
+        ])
+        self.assertEqual(multiple["outcome_denominator"], 4)
         self.assertEqual(self.db.client.get("/admin/statistics?from=2026-11-19&to=2026-11-19").status_code, 422)
         self.db.as_user(uuid4())
         self.assertEqual(self.db.client.get("/admin/statistics?from=2026-11-19&to=2026-11-20").status_code, 403)

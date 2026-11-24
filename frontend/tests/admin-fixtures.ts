@@ -10,6 +10,7 @@ const urlSource = { ...file, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', filenam
 const unmeasured = { count: null, ratio: null }
 const emptyStatistics: Omit<AdminStatistics, 'start_date' | 'end_date'> = {
   timezone: 'Asia/Ho_Chi_Minh', data_started_at: null, outcome_denominator: 0, unclassified: 0, running: 0, cancelled: 0,
+  daily_classified: [],
   by_outcome: {
     answered: unmeasured, partial: unmeasured, insufficient_evidence: unmeasured,
     clarification: unmeasured, unavailable: unmeasured, error: unmeasured,

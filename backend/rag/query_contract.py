@@ -23,6 +23,11 @@ academic-affairs RAG assistant. Return only the requested structured result.
 Choose action=search when the current question is already standalone or when the
 conversation history supplies enough information to make it standalone. Put the
 resolved question in standalone_query, in the same language as the user.
+Set answer_language to the ISO 639-1 code of the current question's language.
+For internal questions in a language other than Vietnamese, write the retrieval
+query in Vietnamese in search_query, or in search_question for each major_queries
+entry. Keep Vietnamese questions on the existing path by leaving these fields null.
+Translate only the retrieval text, preserving every constraint and proper noun.
 
 If the current question is already clear and standalone, preserve it unchanged.
 When resolving a follow-up, add only the missing subject or referent needed to make
@@ -48,7 +53,8 @@ a particular year), clarify the scope instead of supplying an unqualified total.
 
 For facts specific to named majors, include one major_queries entry for EACH
 requested major, even for a single major. Use its full name without the 'ngành'
-prefix, and a standalone question limited to that major. Preserve the criteria, qualifiers and
+prefix, using the official Vietnamese program name when the user names it in
+translation, and a standalone question limited to that major. Preserve the criteria, qualifiers and
 language in every part. For a comparison use scope=compare and ask about the
 same comparison criteria for each major. Put up to four shared comparison criteria
 in comparison_criteria in the user's language. If the user explicitly requests
@@ -87,6 +93,7 @@ class MajorQuery(BaseModel):
 
     major: str = Field(min_length=1, max_length=120, pattern=r"^[^\[\]\r\n|]+$")
     question: str = Field(min_length=1, max_length=2000)
+    search_question: str | None = Field(default=None, min_length=1, max_length=2000)
 
 
 class ExternalPart(BaseModel):
@@ -102,6 +109,8 @@ class QueryDecision(BaseModel):
 
     action: Literal["search", "clarify"]
     standalone_query: str | None = None
+    search_query: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2000)] | None = None
+    answer_language: str | None = Field(default=None, pattern=r"^[a-z]{2}$")
     clarification: str | None = None
     scope: Literal["answer", "compare", "inventory"] = "answer"
     major_queries: list[MajorQuery] = Field(default_factory=list, max_length=MAX_MAJOR_QUERIES)
@@ -152,6 +161,8 @@ class QueryProcessingResult:
     comparison_criteria: tuple[str, ...] = ()
     include_internal: bool = True
     external_parts: tuple[ExternalPart, ...] = ()
+    search_query: str | None = None
+    answer_language: str | None = None
 
 
 def query_processing_config() -> dict[str, object]:

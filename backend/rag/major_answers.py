@@ -8,7 +8,9 @@ from langchain_core.runnables.config import RunnableConfig
 from sqlalchemy.orm import Session
 
 from rag.citations import cited_source_indices
-from rag.langchain_pipeline import format_documents, grounded_answer_chain, grounded_comparison_chain
+from rag.langchain_pipeline import (
+    format_documents, grounded_answer_chain, grounded_comparison_chain, no_context_message,
+)
 from rag.langchain_retriever import SQLAlchemyVectorRetriever
 from rag.major_catalog import MajorCatalog, major_key
 from rag.qa_diagnostics import QuestionDiagnostics, observe_search
@@ -62,14 +64,16 @@ def _eligible_passages(hits: list[Document], criterion: str | None, question: st
     return eligible
 
 
-def _checked_cell(answer: str, resolution: Resolution, allowed: set[int], last: int) -> tuple[str, Resolution]:
+def _checked_cell(
+    answer: str, resolution: Resolution, allowed: set[int], last: int, missing: str,
+) -> tuple[str, Resolution]:
     if resolution.outcome == Outcome.INSUFFICIENT:
-        return _MISSING, resolution
+        return missing, resolution
     cited = cited_source_indices(answer, last)
     if not allowed.issuperset(cited):
         raise ValueError("Generated answer references a citation outside its major or criterion")
     if not cited:
-        return _MISSING, Resolution(Outcome.ERROR, ("unverified_answer",))
+        return missing, Resolution(Outcome.ERROR, ("unverified_answer",))
     return answer.strip(), resolution
 
 
@@ -85,7 +89,9 @@ class _Evidence:
     missing: list[tuple[str, Resolution]]
 
 
-def _select_evidence(ranked: list[list[Document]], quota: int, first: int) -> _Evidence:
+def _select_evidence(
+    ranked: list[list[Document]], quota: int, first: int, missing_message: str, budget_message: str,
+) -> _Evidence:
     candidates = [{doc.metadata["chunk_id"]: doc for doc in hits} for hits in ranked]
     passages: dict[str, Document] = {}
     for hits in candidates:
@@ -115,8 +121,8 @@ def _select_evidence(ranked: list[list[Document]], quota: int, first: int) -> _E
     numbers = {key: number for number, key in enumerate(selected, first)}
     allowed = [{numbers[key] for key in hits if key in numbers} for hits in candidates]
     missing = [
-        (_BUDGET, Resolution(Outcome.INSUFFICIENT, ("context_budget",))) if hits and not refs
-        else (_MISSING, Resolution(Outcome.INSUFFICIENT, ("missing_evidence",)))
+        (budget_message, Resolution(Outcome.INSUFFICIENT, ("context_budget",))) if hits and not refs
+        else (missing_message, Resolution(Outcome.INSUFFICIENT, ("missing_evidence",)))
         for hits, refs in zip(candidates, allowed)
     ]
     return _Evidence(list(selected.values()), allowed, missing)
@@ -127,11 +133,17 @@ def answer_by_major(
     *, criteria: tuple[str, ...], top_k: int, filters: RetrievalFilters | None,
     config: RunnableConfig | None,
     diagnostics: QuestionDiagnostics | None = None,
+    answer_language: str | None = None,
 ) -> tuple[str, list[Document], Resolution]:
     # Reserve each subject's share before searching. Finish all reads before
     # generation so progress stages stay ordered and the same Session is used serially.
     groups = []
     documents: list[Document] = []
+    missing = no_context_message(answer_language) if answer_language in ("en", "ja") else _MISSING
+    budget_message = {
+        "en": "The available excerpts do not cover this criterion.",
+        "ja": "選択された抜粋には、この項目を確認できる情報がありません。",
+    }.get(answer_language, _BUDGET)
     quota, extra = divmod(top_k, len(parts))
     for index, part in enumerate(parts):
         entry = catalog.majors.get(major_key(part.major))
@@ -146,18 +158,19 @@ def answer_by_major(
             )
         ranked = []
         observations = []
+        search_question = part.search_question or part.question
         for criterion in criteria or (None,):
-            query = _search_query(name, part.question, criterion)
+            query = _search_query(name, search_question, criterion)
             with observe_search(diagnostics, name, criterion, part.question, query,
                                 candidate_limit=candidate_limit, context_budget=budget) as observation:
                 hits = retriever.invoke(query, config=config) if retriever is not None else []
-                eligible = _eligible_passages(hits, criterion, part.question)
+                eligible = _eligible_passages(hits, criterion, search_question)
                 ranked.append(eligible)
                 if observation is not None:
                     if retriever is None:
                         observation.status = "no_identified_document"
                     observations.append(observation)
-        evidence = _select_evidence(ranked, budget, len(documents) + 1)
+        evidence = _select_evidence(ranked, budget, len(documents) + 1, missing, budget_message)
         if observations:
             numbers = {doc.metadata["chunk_id"]: number for number, doc in
                        enumerate(evidence.documents, len(documents) + 1)}
@@ -185,6 +198,8 @@ def answer_by_major(
                 ),
                 "context": format_documents(evidence.documents, first, character_limit=MAX_CHUNK_CHARACTERS),
             }
+            if answer_language is not None:
+                prompt["answer_language"] = answer_language
             covered = [i for i, refs in enumerate(evidence.allowed) if refs]
             if criteria:
                 prompt["question"] += "\nTrả lời từng tiêu chí theo đúng thứ tự, chỉ dùng các đoạn tương ứng:\n"
@@ -197,17 +212,20 @@ def answer_by_major(
             else:
                 replies = [generation.invoke(prompt, config=config)]
             for i, reply in zip(covered, replies):
-                cells[i] = _checked_cell(reply.answer, reply.resolution, evidence.allowed[i], len(documents))
+                cells[i] = _checked_cell(reply.answer, reply.resolution, evidence.allowed[i], len(documents), missing)
             first += len(evidence.documents)
         texts, resolutions = zip(*cells)
         outcomes.extend(resolutions)
         if criteria:
             columns.append(list(texts))
+        elif len(groups) == 1 and answer_language not in (None, "vi"):
+            sections.append(texts[0])
         else:
             sections.append(f"**{name}**\n\n{texts[0]}")
 
     if criteria:
-        rows = [_table_row(["Tiêu chí", *(name for name, _, _ in groups)]),
+        label = {"en": "Criterion", "ja": "項目"}.get(answer_language, "Tiêu chí")
+        rows = [_table_row([label, *(name for name, _, _ in groups)]),
                 _table_row(["---"] * (1 + len(groups)))]
         for index, criterion in enumerate(criteria):
             rows.append(_table_row([criterion, *(column[index] for column in columns)]))
