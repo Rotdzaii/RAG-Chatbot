@@ -12,6 +12,7 @@ from sqlalchemy import delete, select
 
 import test_source_activation as fixture
 from rag.major_catalog import read_major_catalog, subject_name
+from rag.langchain_pipeline import GroundedAnswer
 from rag.models import Chunk, Document, Message, QuestionTurn
 from rag.qa import answer_question
 from rag.qa_diagnostics import QuestionDiagnostics
@@ -521,3 +522,42 @@ class MultiDocumentTests(unittest.TestCase):
         frames = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
         self.assertEqual([f["stage"] for f in frames if "stage" in f], ["query", "retrieval", "validation"])
         self.assertEqual(frames[-1]["response"]["sources"][0]["page_start"], 1)
+
+    def test_multilingual_stream_keeps_original_question_and_localizes_refusal(self):
+        major = "Kỹ thuật phần mềm"
+        self.seed(f"Ngành: {major}\nMã ngành: 7480103")
+        cases = [
+            ("ja", "VLUのソフトウェア工学専攻の学科コードは何ですか？", f"Mã ngành {major} tại VLU",
+             GroundedAnswer(outcome="answered", answer="学科コードは7480103です [1]。"),
+             "学科コードは7480103です [1]。", 1),
+            ("en", "What is VLU's Software Engineering tuition in 2037?", f"Học phí {major} tại VLU năm 2037",
+             GroundedAnswer(outcome="insufficient_evidence", answer=""),
+             "The available documents do not contain enough information to answer this question.", 0),
+        ]
+        for language, question, search_query, generated, expected, citations in cases:
+            with self.subTest(language=language):
+                self.structured.invoke.return_value = {
+                    "action": "search", "standalone_query": question, "answer_language": language,
+                    "major_queries": [{"major": major, "question": question, "search_question": search_query}],
+                }
+
+                def answer(prompt):
+                    system, user = prompt.to_messages()
+                    self.assertIn(f"response language is {language}", system.content)
+                    self.assertIn(question, user.content)
+                    self.assertNotIn(search_query, user.content)
+                    return generated
+
+                self.db.model.return_value = GroundedModelStub(answer)
+                with patch("rag.retrieval.embed_query", return_value=[1.] + [0.] * 767) as embed:
+                    response = self.db.client.post("/questions/stream", json={
+                        "question": question, "request_id": str(uuid4()),
+                    })
+                embed.assert_called_once_with(search_query)
+                self.assertEqual(response.status_code, 200)
+                frames = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
+                result = frames[-1]["response"]
+                self.assertEqual(result["answer"], expected)
+                self.assertEqual(len(result["sources"]), citations)
+                history = self.db.client.get(f"/conversations/{result['conversation_id']}/messages").json()
+                self.assertEqual(next(message["content"] for message in history if message["role"] == "user"), question)

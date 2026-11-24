@@ -168,4 +168,6 @@ def process_query(
         comparison_criteria=tuple(decision.comparison_criteria),
         include_internal=decision.include_internal,
         external_parts=tuple(decision.external_parts),
+        search_query=decision.search_query,
+        answer_language=decision.answer_language,
     )

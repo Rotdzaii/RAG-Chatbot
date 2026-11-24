@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from rag.citations import cited_source_indices
 from rag.external_answers import WEB_UNAVAILABLE, GroundedResult, general_answer, web_answer
-from rag.langchain_pipeline import NO_CONTEXT_MESSAGE, build_rag_pipeline
+from rag.langchain_pipeline import build_rag_pipeline, no_context_message
 from rag.major_answers import answer_by_major
 from rag.major_catalog import MajorCatalog, major_key, read_major_catalog
 from rag.qa_diagnostics import QuestionDiagnostics, observe_search
@@ -97,6 +97,8 @@ def answer_question(
             "top_k": top_k, "filters": filters.model_dump(exclude_none=True) if filters else {},
             "action": query_result.action, "scope": query_result.scope,
             "standalone_query": query_result.standalone_query,
+            "search_query": query_result.search_query,
+            "answer_language": query_result.answer_language,
             "major_queries": [part.model_dump() for part in query_result.major_queries],
             "comparison_criteria": list(query_result.comparison_criteria),
             "include_internal": query_result.include_internal,
@@ -124,7 +126,7 @@ def _answer_routed(
     if not plan.include_internal and (
         _INTERNAL_REFERENCE.search(question) or plan.major_queries or plan.scope != "answer"
     ):
-        return _answer_internal(session, question, replace(plan, standalone_query=question),
+        return _answer_internal(session, question, replace(plan, standalone_query=question, search_query=None),
                                 top_k, history, filters, diagnostics)
 
     internal = None
@@ -210,6 +212,7 @@ def _answer_internal(
                 session, catalog, parts, criteria=criteria if query_result.scope == "compare" else (),
                 top_k=top_k, filters=filters, config=config,
                 diagnostics=diagnostics,
+                answer_language=query_result.answer_language,
             )
             sources = _as_sources(documents)
     else:
@@ -217,9 +220,15 @@ def _answer_internal(
         pipeline = build_rag_pipeline(
             session, top_k=top_k, **({"filters": filters} if filters is not None else {})
         )
-        with observe_search(diagnostics, None, None, standalone, standalone,
+        search_query = query_result.search_query or standalone
+        pipeline_input = {"question": standalone}
+        if query_result.search_query:
+            pipeline_input["search_query"] = search_query
+        if query_result.answer_language is not None:
+            pipeline_input["answer_language"] = query_result.answer_language
+        with observe_search(diagnostics, None, None, standalone, search_query,
                             candidate_limit=top_k, context_budget=top_k) as observation:
-            result = pipeline.invoke({"question": standalone}, **({"config": config} if config else {}))
+            result = pipeline.invoke(pipeline_input, **({"config": config} if config else {}))
             if observation is not None:
                 observation.record_selection({doc.metadata["chunk_id"]: i for i, doc in enumerate(result["documents"], 1)})
         answer = result["answer"]
@@ -227,7 +236,7 @@ def _answer_internal(
         resolution = result.get("resolution")
     citations = cited_source_indices(answer, len(sources))
     if not citations and query_result.scope == "answer" and not parts:
-        answer = NO_CONTEXT_MESSAGE
+        answer = no_context_message(query_result.answer_language)
         if resolution and resolution.outcome in (Outcome.ANSWERED, Outcome.PARTIAL):
             # The generation claimed coverage but failed the evidence contract.
             resolution = Resolution(Outcome.ERROR, ("unverified_answer",))
