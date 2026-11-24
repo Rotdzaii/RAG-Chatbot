@@ -21,12 +21,14 @@ export type SourcePage = { items: KnowledgeSource[]; total: number; limit: numbe
 export type StatisticsRange = { from: string; to: string }
 export type StatisticsOutcome = 'answered' | 'partial' | 'insufficient_evidence' | 'clarification' | 'unavailable' | 'error'
 export type StatisticsMeasure = { count: number | null; ratio: number | null }
+export type DailyClassified = { date: string; count: number | null }
 export type AdminStatistics = {
   start_date: string
   end_date: string
   timezone: string
   data_started_at: string | null
   outcome_denominator: number
+  daily_classified: DailyClassified[]
   unclassified: number
   running: number
   cancelled: number

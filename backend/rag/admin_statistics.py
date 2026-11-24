@@ -1,5 +1,6 @@
-from datetime import date, datetime, time, timezone
-from typing import Annotated
+from collections.abc import Callable, Iterator, Mapping
+from datetime import date, datetime, time, timedelta, timezone
+from typing import Annotated, Literal
 from uuid import UUID
 from zoneinfo import ZoneInfo
 
@@ -18,6 +19,9 @@ from rag.question_tracking import VALIDATED_CITATION_VERSION
 
 
 ADMIN_TIMEZONE = ZoneInfo("Asia/Ho_Chi_Minh")
+MAX_STATISTICS_DAYS = 31
+ExecutedRoute = Literal["internal", "general", "web", "mixed", "none"]
+EXECUTED_ROUTES = ("internal", "general", "web", "mixed", "none")
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 
 
@@ -33,12 +37,18 @@ class RankedDocument(Measure):
     deleted: bool
 
 
+class DailyClassified(BaseModel):
+    date: date
+    count: int | None
+
+
 class Statistics(BaseModel):
     start_date: date
     end_date: date
     timezone: str = ADMIN_TIMEZONE.key
     data_started_at: datetime | None
     outcome_denominator: int
+    daily_classified: list[DailyClassified]
     unclassified: int
     running: int
     cancelled: int
@@ -50,6 +60,21 @@ class Statistics(BaseModel):
 
 def _utc_boundary(day: date) -> datetime:
     return datetime.combine(day, time.min, ADMIN_TIMEZONE).astimezone(timezone.utc)
+
+
+def _days(start: date, end: date) -> Iterator[date]:
+    for offset in range((end - start).days):
+        yield start + timedelta(days=offset)
+
+
+def daily_classified_series(
+    start: date, end: date, counts: Mapping[date, int], first_measured: date | None, last_measured: date,
+) -> list[DailyClassified]:
+    return [
+        DailyClassified(date=day, count=counts.get(day, 0 if first_measured is not None
+                                                   and first_measured <= day <= last_measured else None))
+        for day in _days(start, end)
+    ]
 
 
 def _ratio(count: int, total: int) -> float | None:
@@ -124,13 +149,20 @@ def _document_ranking(session: Session, start: datetime, end: datetime, limit: i
 def summarize(session: Session, start_date: date, end_date: date, limit: int) -> Statistics:
     start, end = _utc_boundary(start_date), _utc_boundary(end_date)
     outcomes = dict.fromkeys(Outcome, 0)
-    routes = dict.fromkeys(("internal", "general", "web", "mixed", "none"), 0)
+    routes = dict.fromkeys(EXECUTED_ROUTES, 0)
     running = cancelled = unclassified = 0
+    days = list(_days(start_date, end_date))
+    daily_counts: dict[date, int] = {}
     turn = QuestionTurn
+    # UTC boundaries give the same local calendar buckets in PostgreSQL and SQLite.
+    day_index = case(*[
+        (turn.received_at < _utc_boundary(day + timedelta(days=1)), index)
+        for index, day in enumerate(days)
+    ]).label("day_index")
     grouped = session.execute(
-        select(turn.state, turn.outcome, turn.executed_routes, func.count().label("count"))
+        select(day_index, turn.state, turn.outcome, turn.executed_routes, func.count().label("count"))
         .where(turn.received_at >= start, turn.received_at < end)
-        .group_by(turn.state, turn.outcome, turn.executed_routes)
+        .group_by(day_index, turn.state, turn.outcome, turn.executed_routes)
     )
     for row in grouped:
         if row.state == "running":
@@ -141,6 +173,8 @@ def summarize(session: Session, start_date: date, end_date: date, limit: int) ->
             unclassified += row.count
         else:
             outcomes[Outcome(row.outcome)] += row.count
+            day = days[row.day_index]
+            daily_counts[day] = daily_counts.get(day, 0) + row.count
             executed = row.executed_routes
             route = executed[0] if len(executed) == 1 else "mixed" if executed else "none"
             routes[route] += row.count
@@ -152,24 +186,20 @@ def summarize(session: Session, start_date: date, end_date: date, limit: int) ->
     started_at = session.scalar(select(func.min(turn.received_at)))
     if started_at and started_at.tzinfo is None:
         started_at = started_at.replace(tzinfo=timezone.utc)
+    first_measured = started_at.astimezone(ADMIN_TIMEZONE).date() if started_at else None
+    today = datetime.now(ADMIN_TIMEZONE).date()
     total = sum(outcomes.values())
     cited_total, documents = _document_ranking(session, start, end, limit)
     return Statistics(
         start_date=start_date, end_date=end_date, data_started_at=started_at,
         outcome_denominator=total, unclassified=unclassified, running=running, cancelled=cancelled,
+        daily_classified=daily_classified_series(start_date, end_date, daily_counts, first_measured, today),
         by_outcome=_tallies(outcomes, total), by_executed_route=_tallies(routes, total),
         cited_answer_denominator=cited_total, ranked_documents=documents,
     )
 
 
-@router.get("/statistics", response_model=Statistics)
-def admin_statistics(
-    start_date: Annotated[date, Query(alias="from")],
-    end_date: Annotated[date, Query(alias="to")],
-    limit: Annotated[int, Query(ge=1, le=100)] = 10,
-) -> Statistics:
-    if start_date >= end_date:
-        raise HTTPException(status_code=422, detail="from must precede to")
+def _load_database_statistics(start_date: date, end_date: date, limit: int) -> Statistics:
     try:
         with SessionLocal() as session:
             # All denominators and rankings see the same committed snapshot.
@@ -180,3 +210,21 @@ def admin_statistics(
         raise HTTPException(status_code=503, detail="Statistics are unavailable") from error
     except OverflowError as error:
         raise HTTPException(status_code=422, detail="Date range is outside supported bounds") from error
+
+
+def get_statistics_loader() -> Callable[[date, date, int], Statistics]:
+    return _load_database_statistics
+
+
+@router.get("/statistics", response_model=Statistics)
+def admin_statistics(
+    start_date: Annotated[date, Query(alias="from")],
+    end_date: Annotated[date, Query(alias="to")],
+    load_statistics: Annotated[Callable[[date, date, int], Statistics], Depends(get_statistics_loader)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 10,
+) -> Statistics:
+    if start_date >= end_date:
+        raise HTTPException(status_code=422, detail="from must precede to")
+    if (end_date - start_date).days > MAX_STATISTICS_DAYS:
+        raise HTTPException(status_code=422, detail="Statistics range must not exceed 31 days")
+    return load_statistics(start_date, end_date, limit)

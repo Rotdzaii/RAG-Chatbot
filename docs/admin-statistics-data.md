@@ -25,9 +25,10 @@ Khi không có phần trả lời nào, thứ tự chọn là lỗi, cần làm 
 
 ## API và mẫu số
 
-`GET /admin/statistics?from=2026-11-19&to=2026-11-20&limit=10` dùng `require_admin`. Phản hồi chỉ có số đếm, tỷ lệ, thời gian và xếp hạng tài liệu. Hai ngày là khoảng nửa mở `[from, to)` ở `Asia/Ho_Chi_Minh`, được đổi sang UTC trước khi truy vấn.
+`GET /admin/statistics?from=2026-11-19&to=2026-11-20&limit=10` dùng `require_admin`. Phản hồi có số đếm, tỷ lệ, chuỗi theo ngày và xếp hạng tài liệu. Hai ngày là khoảng nửa mở `[from, to)` ở `Asia/Ho_Chi_Minh`, được đổi sang UTC trước khi truy vấn và nhận tối đa 31 ngày.
 
 - Phân bố kết quả và hướng thực thi dùng thời điểm nhận lần đầu. Mẫu số gồm lượt đã kết thúc có kết quả phân loại. `mixed` là đã thực thi nhiều hướng, `none` là chưa thực thi hướng nào. Tỷ lệ trả dưới dạng phân số từ 0 đến 1. Nếu mẫu số bằng 0 thì số đếm phân loại và tỷ lệ là `null`.
+- `daily_classified` chứa cặp `date` và `count` cho từng ngày được yêu cầu, theo ngày nhận câu hỏi. Ngày trong thời gian theo dõi có `count: 0` nếu chưa có lượt kết thúc và phân loại. Ngày chưa có số liệu có `count: null`, chẳng hạn trước ngày ghi nhận đầu tiên, sau hôm nay hoặc ngoài khoảng 30 ngày của JSON mẫu.
 - `data_started_at` là thời điểm của bản ghi đầu tiên thực sự tồn tại. `unclassified` gồm lượt mới kết thúc thiếu kết quả có cấu trúc và câu trả lời cũ chưa liên kết bản ghi thống kê. Câu trả lời cũ lọc theo thời điểm tạo message. Không backfill trạng thái.
 - Xếp hạng theo thời điểm tạo câu trả lời. Chỉ version `citation_version=1` tham gia vì router đã chọn citation hợp lệ. Đếm một lần cho mỗi cặp message và document ID. Mẫu số là tập câu trả lời có ít nhất một tài liệu hợp lệ. Tỷ lệ có thể vượt 100% khi cộng các tài liệu vì một đáp án trích nhiều tài liệu. Nguồn URL đã nhập kho vẫn có document ID và được tính.
 - Khi tài liệu còn tồn tại, API dùng tên hiện tại, kể cả sau đổi tên hay thay phiên bản. Khi tài liệu đã xóa, API dùng tên citation gần nhất trong khoảng và trả `deleted: true` để hiển thị nhãn **Đã xóa**. Xóa hội thoại giữ kết quả vận hành đã ghi, đặt tham chiếu message thành NULL và loại các citation của hội thoại đó khỏi xếp hạng. Số lượt cũ chưa phân loại có thể giảm vì phụ thuộc message còn lưu.
