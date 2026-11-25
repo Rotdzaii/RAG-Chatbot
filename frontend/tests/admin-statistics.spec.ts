@@ -4,7 +4,7 @@ import type { AdminStatistics } from '../src/admin/adminApi'
 import { emptyStatistics, fixture, signIn } from './admin-fixtures'
 
 const statisticsApi = 'http://127.0.0.1:48080/admin/statistics?*'
-const adminTabTitle = 'VLU| Trợ lý - Admin'
+const adminTabTitle = 'VLU | Trợ Lý - Admin'
 const longFilename = 'QuyCheHocVuVaChuongTrinhDaoTao'.repeat(6) + '.pdf'
 const sample: AdminStatistics = {
   start_date: '2026-11-13',
