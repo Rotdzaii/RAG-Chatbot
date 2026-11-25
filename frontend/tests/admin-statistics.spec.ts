@@ -4,6 +4,7 @@ import type { AdminStatistics } from '../src/admin/adminApi'
 import { emptyStatistics, fixture, signIn } from './admin-fixtures'
 
 const statisticsApi = 'http://127.0.0.1:48080/admin/statistics?*'
+const adminTabTitle = 'VLU| Trợ lý - Admin'
 const longFilename = 'QuyCheHocVuVaChuongTrinhDaoTao'.repeat(6) + '.pdf'
 const sample: AdminStatistics = {
   start_date: '2026-11-13',
@@ -64,7 +65,7 @@ test('giữ trang mặc định, đọc số liệu và xếp hai khối cạnh 
   const sourcesLink = sidebar.getByRole('link', { name: 'Quản lý tài liệu' })
   const breadcrumb = page.getByRole('navigation', { name: 'Vị trí hiện tại' })
   await expect(page).toHaveURL(/\/admin$/)
-  await expect(page).toHaveTitle('Quản trị · Văn Lang')
+  await expect(page).toHaveTitle(adminTabTitle)
   await expect(page.getByRole('heading', { name: 'Tổng quan', exact: true })).toBeVisible()
   await expect(overviewLink).toHaveAttribute('aria-current', 'page')
   await expect(sourcesLink).not.toHaveAttribute('aria-current', 'page')
@@ -151,7 +152,7 @@ test('giữ trang mặc định, đọc số liệu và xếp hai khối cạnh 
   await sourcesLink.click()
   await expect(page).toHaveURL(/\/admin\/sources$/)
   await expect(page.getByRole('heading', { name: 'Quản lý tài liệu' })).toBeVisible()
-  await expect(page).toHaveTitle('Quản trị · Văn Lang')
+  await expect(page).toHaveTitle(adminTabTitle)
   await expect(sourcesLink).toHaveAttribute('aria-current', 'page')
   await expect(overviewLink).not.toHaveAttribute('aria-current', 'page')
   await expect(breadcrumb).toHaveText('Quản trị / Quản lý tài liệu')
@@ -304,7 +305,7 @@ test('từ chối khách và User trước khi tải thống kê', async ({ page
   await userPage.goto('/admin')
   await expect(userPage.getByRole('heading', { name: 'Bạn chưa có quyền quản trị' })).toBeVisible()
   await expect(userPage).toHaveURL(/\/admin$/)
-  await expect(userPage).toHaveTitle('Quản trị · Văn Lang')
+  await expect(userPage).toHaveTitle(adminTabTitle)
   await expect(summary(userPage)).toHaveCount(0)
   expect(requests).toEqual([])
   await userPage.close()
@@ -318,7 +319,7 @@ test('URL frontend cũ hiển thị trang không tìm thấy cho cả khách và
       await page.goto('/admin/statistics')
       await expect(page.getByRole('heading', { name: 'Không tìm thấy trang' })).toBeVisible()
       await expect(page).toHaveURL(/\/admin\/statistics$/)
-      await expect(page).toHaveTitle('Quản trị · Văn Lang')
+      await expect(page).toHaveTitle(adminTabTitle)
       await expect(page.getByRole('link', { name: 'Về trang Tổng quan' })).toHaveAttribute('href', '/admin')
       await expect(page.getByRole('heading', { name: 'Tổng quan', exact: true })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Quản lý tài liệu', exact: true })).toHaveCount(0)
@@ -340,7 +341,7 @@ test('đăng nhập giữ đích Quản lý tài liệu và mở trực tiếp s
   await page.reload()
   await expect(page.getByRole('heading', { name: 'Quản lý tài liệu' })).toBeVisible()
   await expect(page).toHaveURL(baseURL + destination)
-  await expect(page).toHaveTitle('Quản trị · Văn Lang')
+  await expect(page).toHaveTitle(adminTabTitle)
 })
 
 for (const [status, heading] of [[401, 'Phiên đăng nhập đã hết hạn'], [403, 'Bạn chưa có quyền quản trị']] as const) {
@@ -391,7 +392,7 @@ test('drawer mobile, tên dài và sử dụng bộ lọc bằng bàn phím', as
   await expect(drawer).toHaveCount(0)
   await expect(trigger).toBeFocused()
   await expect(page).toHaveURL(/\/admin$/)
-  await expect(page).toHaveTitle('Quản trị · Văn Lang')
+  await expect(page).toHaveTitle(adminTabTitle)
   await expect(page.getByRole('banner').getByText('VLU · Quản trị', { exact: true })).toBeVisible()
   await expect(page.getByRole('navigation', { name: 'Vị trí hiện tại' })).toHaveText('Quản trị / Tổng quan')
   await expect(page.getByRole('button', { name: 'Cách đọc số liệu' })).toBeVisible()
