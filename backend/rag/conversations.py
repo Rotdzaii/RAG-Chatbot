@@ -1,10 +1,11 @@
+from contextlib import suppress
 from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
-from rag.models import Conversation, Message
+from rag.models import Chunk, Conversation, Document, Message
 from rag.query_contract import (
     HISTORY_MAX_CHARACTERS,
     HISTORY_MAX_MESSAGES,
@@ -84,6 +85,16 @@ def list_owned_messages(
     return list(session.scalars(statement))
 
 
+def _cited_chunk_ids(message: Message) -> set[UUID]:
+    ids = set()
+    for citation in getattr(message, "citations", None) or ():
+        chunk_id = citation.get("chunk_id") if isinstance(citation, dict) else None
+        if isinstance(chunk_id, str):
+            with suppress(ValueError):
+                ids.add(UUID(chunk_id))
+    return ids
+
+
 def list_recent_owned_messages(
     session: Session,
     conversation_id: UUID,
@@ -101,7 +112,7 @@ def list_recent_owned_messages(
         .limit(max_messages)
     )
     newest_first = list(session.scalars(statement))[:max_messages]
-    messages = []
+    history_with_sources = []
     for message in reversed(newest_first):
         if message.role not in {"user", "assistant"}:
             continue
@@ -110,7 +121,19 @@ def list_recent_owned_messages(
         if message.role == "assistant" and content.endswith(GROUNDING_EXPIRED):
             content = content.removesuffix(GROUNDING_EXPIRED).rstrip()
         if content.strip():
-            messages.append(HistoryMessage(role=message.role, content=content))
+            chunk_ids = _cited_chunk_ids(message) if message.role == "assistant" else set()
+            history_with_sources.append((HistoryMessage(role=message.role, content=content), chunk_ids))
+
+    # Replacing a source gives it new chunk IDs. Keep archived turns for
+    # display, but omit outdated assistant claims from query resolution.
+    cited_ids = {chunk_id for _, chunk_ids in history_with_sources for chunk_id in chunk_ids}
+    active_ids = set()
+    if cited_ids:
+        active_chunks = select(Chunk.id).join(Chunk.document).where(
+            Chunk.id.in_(cited_ids), Document.is_active.is_(True)
+        )
+        active_ids = set(session.scalars(active_chunks))
+    messages = [message for message, chunk_ids in history_with_sources if chunk_ids <= active_ids]
 
     while len(messages) > 2 and sum(len(item.content) for item in messages) > max_characters:
         remove_count = (

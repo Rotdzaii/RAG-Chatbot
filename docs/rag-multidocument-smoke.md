@@ -7,7 +7,7 @@ Năm câu hỏi kiểm tra môn học của hai ngành, so sánh hai tiêu chí,
 - Bước xử lý câu hỏi dùng lịch sử để làm rõ câu tiếp nối, ưu tiên ngành người dùng vừa nêu và hỏi lại khi chưa rõ ngành đang được nhắc tới. Câu hỏi nhiều ngành được tách theo ngành và theo tiêu chí so sánh, giữ điều kiện như kỳ nhập học và khóa.
 - Truy xuất chỉ xét tài liệu đang sử dụng, đúng ngành và bộ lọc. Hệ thống chọn bằng chứng theo từng ngành và tiêu chí rồi gộp đoạn trùng. Mỗi ô chỉ được trích dẫn từ các đoạn đã chọn cho chính ngành và tiêu chí đó. Ô thiếu bằng chứng được báo riêng.
 - Tiêu chí mã ngành kiểm tra nhãn, mã và kỳ nhập học khi truy vấn nêu rõ một kỳ. Tiêu chí mở vẫn phụ thuộc truy xuất ngữ nghĩa và bước sinh câu trả lời. Ngưỡng cosine distance 0.30, tối đa 10 ứng viên mỗi lượt truy xuất theo ngành và tiêu chí, và tối đa 5 đoạn trong context là cấu hình mặc định hiện hành. Chưa có đánh giá xác định các giá trị tối ưu.
-- Kiểm kê đọc nội dung đoạn mở đầu của từng tài liệu đang sử dụng và gộp các khai báo cùng ngành. Nếu có tài liệu chưa nhận diện được ngành, hệ thống liệt kê phần đã xác minh và để ngỏ tổng số.
+- Kiểm kê đọc nội dung đoạn mở đầu của từng tài liệu đang sử dụng và gộp các khai báo cùng ngành. Nếu có tài liệu chưa nhận diện được ngành, hệ thống nêu số ngành đã xác minh, liệt kê các ngành đó kèm trích dẫn và để ngỏ tổng số.
 
 ## Kết quả live đã xác minh
 

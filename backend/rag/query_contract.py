@@ -42,11 +42,13 @@ resolved from history. Put one concise clarification question in clarification.
 The current question has priority when the user changes topic. Never force a new
 topic back to an older subject. Do not invent a subject, program, policy, or fact.
 Conversation history is only for resolving references and intent; it is not
-academic evidence and must not be copied as a factual answer. Do not answer the
-academic question itself.
+academic evidence. Do not carry past assistant claims or values into retrieval
+queries as facts. Preserve the user's constraints. Do not answer the academic
+question itself.
 
 Set scope=inventory for a count or list of all distinct majors represented in
-the available VLU documents (including "VLU hiện có bao nhiêu ngành?"). This is
+the available VLU documents (including "VLU hiện có bao nhiêu ngành?" and
+"Cho tôi biết tổng số ngành bạn có thể trả lời"). This is
 never a count of specializations, courses, or universities. If the user asks for a
 subset by a criterion that the inventory cannot verify (e.g. majors offered in
 a particular year), clarify the scope instead of supplying an unqualified total.

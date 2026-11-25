@@ -76,9 +76,12 @@ class MajorCatalog:
         entries = [self.majors[key] for key in sorted(self.majors)]
         listing = ", ".join(f"{entry.name} [{i}]" for i, entry in enumerate(entries, 1))
         if self.incomplete:
-            answer = "Chưa đủ bằng chứng để xác định tổng số ngành trong các tài liệu đang sử dụng."
+            answer = "Chưa đủ bằng chứng để chốt tổng số ngành vì còn tài liệu chưa xác định được ngành."
             if entries:
-                answer += f" Các ngành đã xác minh gồm {listing}."
+                answer = (
+                    f"Đã xác minh {len(entries)} ngành trong kho tài liệu đang sử dụng, gồm {listing}.\n\n"
+                    + answer
+                )
         elif entries:
             answer = f"Theo các tài liệu hiện có, có {len(entries)} ngành: {listing}."
         else:

@@ -35,6 +35,12 @@ _VLU_INVENTORY = re.compile(
     r"(?:có|đào tạo) (?:bao nhiêu|những|các) ngành(?: đào tạo)?(?: nào)?[?.!]*",
     re.I,
 )
+_ASSISTANT_INVENTORY = re.compile(
+    r"(?:cho (?:tôi|tớ|mình|em) biết )?"
+    r"(?:tổng số ngành bạn có thể trả lời|"
+    r"bạn có thể trả lời (?:về )?(?:bao nhiêu ngành|những ngành nào))[?.!]*",
+    re.I,
+)
 QUERY_PROCESSING_PROMPT = ChatPromptTemplate.from_messages(
     [
         (
@@ -106,7 +112,7 @@ def process_query(
 ) -> QueryProcessingResult:
     started_at = time.perf_counter()
     normalized = unicodedata.normalize("NFC", " ".join(question.split()))
-    if _VLU_INVENTORY.fullmatch(normalized):
+    if _VLU_INVENTORY.fullmatch(normalized) or _ASSISTANT_INVENTORY.fullmatch(normalized):
         return QueryProcessingResult(
             action="search", standalone_query=question, clarification=None, history_used=False,
             elapsed_ms=(time.perf_counter() - started_at) * 1000, scope="inventory",
