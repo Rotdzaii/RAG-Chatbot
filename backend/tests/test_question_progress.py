@@ -22,8 +22,9 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.compiler import compiles
 from sqlalchemy.orm import sessionmaker
 from auth import AuthenticatedUser, get_authenticated_user
+from database import Base
 from main import app
-from rag.models import Conversation, Message, QuestionTurn
+from rag.models import Chunk, Document, Message
 from rag.progress_router import ProgressQuestionRequest, stream_question
 from rag.query_contract import QueryProcessingResult
 from rag.retrieval import RetrievedChunk
@@ -45,9 +46,7 @@ class QuestionProgressTests(unittest.TestCase):
             connection.create_function("gen_random_uuid", 0, lambda: uuid4().hex)
             connection.create_function("now", 0, lambda: datetime.now(timezone.utc).isoformat())
             connection.execute("PRAGMA foreign_keys=ON")
-        Conversation.__table__.create(self.engine)
-        Message.__table__.create(self.engine)
-        QuestionTurn.__table__.create(self.engine)
+        Base.metadata.create_all(self.engine)
         self.sessions = sessionmaker(self.engine, expire_on_commit=False)
         self.user = uuid4()
         previous = app.dependency_overrides.copy()
@@ -61,6 +60,11 @@ class QuestionProgressTests(unittest.TestCase):
         patched("rag.router.SessionLocal", new=self.sessions)
         self.query = patched("rag.qa.process_query", return_value=QueryProcessingResult("search", "Question", None, False, 1))
         self.chunk = RetrievedChunk(uuid4(), uuid4(), "fixture.txt", 0, "Evidence", .1)
+        with self.sessions.begin() as session:
+            session.add(Document(
+                id=self.chunk.document_id, filename=self.chunk.filename, mime_type="text/plain",
+                chunks=[Chunk(id=self.chunk.chunk_id, chunk_index=0, content=self.chunk.content)],
+            ))
         self.retrieval = patched("rag.langchain_retriever.retrieve_chunks", return_value=[self.chunk])
         self.answers = iter(["Validated answer [1]."])
         self.model = patched("rag.langchain_pipeline._get_chat_model", return_value=GroundedModelStub(lambda _prompt: next(self.answers)))

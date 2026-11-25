@@ -11,6 +11,10 @@ tạo phiên bản mới và thay chunks trong transaction. Citation đã lưu v
 UUID cũ; không chuyển sang bản mới nhất. Version được lưu trước chunk thông qua
 quan hệ ORM, bảo đảm khóa ngoại hợp lệ khi flush.
 
+Sau khi thay thành công, câu hỏi mới trong cùng cuộc trò chuyện tra cứu trên chunks
+hiện hành. Câu hỏi cũ vẫn giúp xác định chủ đề. Câu trả lời từng trích chunks đã
+thay hoặc đã tắt được giữ trong lịch sử và loại khỏi ngữ cảnh phân giải câu hỏi mới.
+
 ## Storage và rollback
 
 Đặt `RAG_SOURCE_FILE_DIR` thành đường dẫn tuyệt đối tới thư mục riêng, bền vững,

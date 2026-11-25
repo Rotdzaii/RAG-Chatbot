@@ -94,11 +94,13 @@ class MultiDocumentTests(unittest.TestCase):
         self.seed("Ngành: Kiến trúc")
         self.seed("Quy chế thực tập\nVí dụ: ngành Hóa học.\nChuyên ngành: Hóa dầu.")
         self.seed("", chunks=0)
-        result = self.ask("VLU hiện có bao nhiêu ngành?")
+        result = self.ask("cho tôi biết tổng số ngành bạn có thể trả lời")
+        self.assertTrue(result["answer"].startswith("Đã xác minh 1 ngành"))
         self.assertIn("Chưa đủ bằng chứng", result["answer"])
         self.assertIn("Kiến trúc [1]", result["answer"])
         self.assertNotRegex(result["answer"], r"có \d+ ngành|Hóa")
         self.assertEqual(len(result["sources"]), 1)
+        self.resolver.assert_not_called()
 
     def test_inventory_trace_accounts_for_duplicate_unknown_and_missing_openings(self):
         known = self.seed("Ngành: Kiến trúc\nNội dung")
@@ -238,9 +240,12 @@ class MultiDocumentTests(unittest.TestCase):
         result = self.ask("VLU có bao nhiêu ngành?")
         self.assertIn("có 1 ngành:", result["answer"])
         self.structured.invoke.return_value = {"action": "clarify", "clarification": "Bạn muốn xét năm nào?"}
-        result = self.ask("VLU có bao nhiêu ngành đạt kiểm định năm 2025?")
-        self.assertEqual(result["sources"], [])
-        self.structured.invoke.assert_called_once()
+        for question in ("VLU có bao nhiêu ngành đạt kiểm định năm 2025?",
+                         "Bạn có thể trả lời về bao nhiêu ngành tuyển sinh năm 2025?"):
+            result = self.ask(question)
+            self.assertEqual(result["sources"], [])
+            self.assertIn("Bạn muốn xét năm nào?", result["answer"])
+        self.assertEqual(self.structured.invoke.call_count, 2)
 
     def test_source_replacement_between_planning_and_search_cannot_leak_into_old_group(self):
         doc_id = self.seed("Ngành: Kiến trúc")
@@ -251,6 +256,64 @@ class MultiDocumentTests(unittest.TestCase):
                               embedding=[1.0] + [0.0] * 767))
             session.commit()
             self.assertEqual(retrieve_chunks(session, "Học phí", subject_headers=tuple(ids)), [])
+
+    def test_new_turn_uses_replacement_and_excludes_stale_assistant_history(self):
+        question = "Ngành Marketing học bao lâu?"
+        old = "Ngành: Marketing\nThời gian đào tạo: 3,5 năm.".encode()
+        new = "Ngành: Marketing\nThời gian đào tạo: 4 năm.".encode()
+        upload = self.db.client.post("/documents", files={"file": ("A1.txt", old, "text/plain")})
+        self.assertEqual(upload.status_code, 201, upload.text)
+        document_id = upload.json()["document_id"]
+        user_id = uuid4()
+        self.db.as_user(user_id)
+        self.plan(["Marketing"], topic="Thời gian đào tạo")
+
+        def answer_from_context(prompt):
+            context = prompt.to_messages()[-1].content.split("\n\nQuestion:")[0]
+            duration = re.search(r"Thời gian đào tạo: ([^\n.]+)\.", context)[1]
+            return f"Thời gian đào tạo là {duration} [1]."
+
+        self.db.model.return_value = GroundedModelStub(answer_from_context)
+        first = self.ask(question, request_id=str(uuid4()))
+        self.assertIn("3,5 năm [1]", first["answer"])
+        conversation_id = first["conversation_id"]
+        old_source = first["sources"][0]
+
+        self.db.as_user(self.db.admin)
+        replaced = self.db.client.put(
+            f"/admin/knowledge-sources/{document_id}/file",
+            files={"file": ("A2.txt", new, "text/plain")},
+        )
+        self.assertEqual(replaced.status_code, 200, replaced.text)
+        self.assertEqual(replaced.json()["status"], "updated")
+        self.db.as_user(user_id)
+
+        second = self.ask(question, conversation_id=conversation_id, request_id=str(uuid4()))
+        self.assertIn("4 năm [1]", second["answer"])
+        self.assertNotIn("3,5 năm", second["answer"])
+        resolver_prompt = self.structured.invoke.call_args.args[0].to_messages()[-1].content
+        self.assertNotIn("3,5 năm", resolver_prompt)
+        new_source = second["sources"][0]
+        self.assertEqual(new_source["document_id"], document_id)
+        self.assertNotEqual(new_source["chunk_id"], old_source["chunk_id"])
+        self.assertNotEqual(new_source["source_file_version_id"], old_source["source_file_version_id"])
+
+        followup = self.ask("Ngành đó hiện học bao lâu?", conversation_id=conversation_id,
+                            request_id=str(uuid4()))
+        self.assertIn("4 năm [1]", followup["answer"])
+        self.assertEqual(followup["sources"], second["sources"])
+        resolver_prompt = self.structured.invoke.call_args.args[0].to_messages()[-1].content
+        self.assertIn(f"user: {question}", resolver_prompt)
+        self.assertIn("4 năm [1]", resolver_prompt)
+        self.assertNotIn("3,5 năm", resolver_prompt)
+
+        history = self.db.client.get(f"/conversations/{conversation_id}/messages")
+        self.assertEqual(history.status_code, 200, history.text)
+        answers = [message for message in history.json() if message["role"] == "assistant"]
+        self.assertEqual([message["content"] for message in answers],
+                         [first["answer"], second["answer"], followup["answer"]])
+        self.assertEqual(answers[0]["citations"], first["sources"])
+        self.assertEqual(answers[1]["citations"], second["sources"])
 
     def test_global_top_hits_are_one_major_yet_both_receive_cited_answers(self):
         a = self.seed("Ngành: Kiến trúc\nHọc phần: Đồ án", chunks=7)
@@ -515,13 +578,19 @@ class MultiDocumentTests(unittest.TestCase):
 
     def test_inventory_via_sse_preserves_citations(self):
         self.seed("Ngành: Kiến trúc")
+        self.seed("Ngành: Marketing")
+        self.seed("Quy định học vụ")
         response = self.db.client.post("/questions/stream", json={
-            "question": "VLU có bao nhiêu ngành?", "request_id": str(uuid4()),
+            "question": "Cho tôi biết tổng số ngành bạn có thể trả lời", "request_id": str(uuid4()),
         })
         self.assertEqual(response.status_code, 200)
         frames = [json.loads(line[6:]) for line in response.text.splitlines() if line.startswith("data: ")]
         self.assertEqual([f["stage"] for f in frames if "stage" in f], ["query", "retrieval", "validation"])
-        self.assertEqual(frames[-1]["response"]["sources"][0]["page_start"], 1)
+        result = frames[-1]["response"]
+        self.assertTrue(result["answer"].startswith("Đã xác minh 2 ngành"))
+        self.assertIn("Kiến trúc [1], Marketing [2]", result["answer"])
+        self.assertEqual([source["page_start"] for source in result["sources"]], [1, 1])
+        self.resolver.assert_not_called()
 
     def test_multilingual_stream_keeps_original_question_and_localizes_refusal(self):
         major = "Kỹ thuật phần mềm"
