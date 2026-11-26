@@ -3,6 +3,7 @@ from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import Response
 from langchain_google_genai._common import GoogleGenerativeAIError
 from pydantic import BaseModel, ConfigDict, Field, StrictBool
 from sqlalchemy import select
@@ -13,7 +14,8 @@ from database import SessionLocal
 from rag.ingestion import ingest_document
 from rag.ocr import OCRFailed, OCRUnavailable
 from rag.knowledge_sources import get_knowledge_source, list_knowledge_sources
-from rag.models import Document
+from rag.models import Document, SourceFileVersion
+from rag.source_file_router import source_file_response
 from rag.source_metadata import MetadataFilter, SourceMetadata, SourceMetadataPatch
 from rag.source_lifecycle import (
     SourceChanged,
@@ -200,6 +202,33 @@ def refresh_url_source(source_id: UUID) -> SourceMutationResponse:
     except (SourceNotFound, SourceTypeMismatch, SourceChanged, ValueError,
             SQLAlchemyError, GoogleGenerativeAIError, RuntimeError) as error:
         raise _mutation_error(error) from error
+    finally:
+        session.close()
+
+
+@router.get("/knowledge-sources/{source_id}/file", response_class=Response)
+def download_file_source(source_id: UUID) -> Response:
+    session = SessionLocal()
+    try:
+        # Choose a stored copy matching the document's current bytes and filename.
+        row = session.execute(
+            select(SourceFileVersion, Document.filename)
+            .join(SourceFileVersion.document)
+            .where(
+                Document.id == source_id,
+                Document.source_type == "file",
+                Document.content_hash == SourceFileVersion.content_hash,
+                Document.mime_type == SourceFileVersion.mime_type,
+            )
+            .order_by(SourceFileVersion.created_at.desc(), SourceFileVersion.id.desc())
+            .limit(1)
+        ).one_or_none()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Source file not found")
+        version, filename = row
+        return source_file_response(version, download_filename=filename)
+    except SQLAlchemyError as error:
+        raise HTTPException(status_code=503, detail="Source file is unavailable") from error
     finally:
         session.close()
 

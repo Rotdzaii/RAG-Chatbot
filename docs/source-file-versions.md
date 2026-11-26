@@ -88,6 +88,10 @@ citation cũ và một citation mới trên bản deploy, kể cả sau restart 
 Response dùng MIME PDF/TXT, tên an toàn `source.pdf`/`source.txt`,
 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`.
 
+Trong **Quản lý tài liệu**, Admin chọn **Tải tệp gốc** ở menu của nguồn PDF/TXT.
+`GET /admin/knowledge-sources/{source_id}/file` tải phiên bản khớp với nội dung
+hiện tại và dùng tên file của tài liệu.
+
 Xóa nguồn qua API hiện có xóa các version DB và thu hồi quyền mở tất cả bản cũ,
 rồi dọn bytes sau commit. Nếu commit thất bại, bản gốc vẫn còn và vẫn mở được.
 Nếu dọn storage lỗi sau commit, ghi log để vận hành dọn file mồ côi; API không
@@ -102,9 +106,10 @@ trang/đoạn như trước; panel báo chưa lưu file gốc và không tạo n
 với bytes không đổi có thể bổ sung version cho chunks thiếu ID mà không embedding
 lại; citation đã lưu trước đó vẫn giữ nguyên.
 
-Frontend fetch bytes có Bearer, PDF mở Blob URL với `#page=N`, TXT tải xuống.
-Các phiên bản của cùng document được giữ riêng; URL website giữ cách mở link cũ.
-Nhánh này không thêm activation, scheduler, metadata filters hay giao diện Admin.
+Người dùng có thể nhấp `[n]` trong câu trả lời hoặc ở **Nguồn tham chiếu**. Frontend
+đọc file qua API có Bearer token. PDF mở ở trang được dẫn qua `#page=N` và TXT mở
+để đọc trong tab mới. Bảng **Nguồn tham khảo** vẫn có thao tác tải TXT. Trích dẫn
+đã lưu mở phiên bản tương ứng và nguồn website mở liên kết gốc.
 
 ## Migration và kiểm thử
 

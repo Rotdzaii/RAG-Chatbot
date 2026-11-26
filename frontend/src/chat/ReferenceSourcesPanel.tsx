@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import { getOriginalSourceFile, type QuestionSource } from '../api'
+import type { QuestionSource } from '../api'
 import type { Conversation } from './types'
-import { groupCitedSources } from './citedSources'
+import { groupCitedSources, toWebsiteReference } from './citedSources'
+import { useCitationFile } from './useCitationFile'
 
 type ReferenceSourcesPanelProps = {
   conversation: Conversation
@@ -10,42 +11,8 @@ type ReferenceSourcesPanelProps = {
   accessToken: string | undefined
 }
 
-type WebsiteReference = {
-  url: string
-  hostname: string
-  displayUrl: string
-}
-
-function toWebsiteReference(source: QuestionSource): WebsiteReference | null {
-  if (source.source_file_version_id) return null
-  // New citations carry the original URL; older saved citations may have
-  // placed a URL in filename, so keep that read-only compatibility path.
-  const candidate = source.source_url?.trim() || source.filename.trim()
-  if (!/^https?:\/\//i.test(candidate)) return null
-
-  try {
-    const parsedUrl = new URL(candidate)
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null
-
-    parsedUrl.hash = ''
-    parsedUrl.searchParams.sort()
-    if (parsedUrl.pathname.length > 1) {
-      parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, '')
-    }
-
-    const normalizedUrl = parsedUrl.toString()
-    return {
-      url: normalizedUrl,
-      hostname: parsedUrl.hostname.replace(/^www\./i, ''),
-      displayUrl: `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}${parsedUrl.search}`,
-    }
-  } catch {
-    return null
-  }
-}
-
-function collectWebsiteReferences(conversation: Conversation): WebsiteReference[] {
-  const references = new Map<string, WebsiteReference>()
+function collectWebsiteReferences(conversation: Conversation) {
+  const references = new Map<string, NonNullable<ReturnType<typeof toWebsiteReference>>>()
 
   for (const turn of conversation.turns) {
     if (turn.status !== 'complete') continue
@@ -84,36 +51,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
   const [isMobileDrawer, setIsMobileDrawer] = useState(() => window.matchMedia('(max-width: 900px)').matches)
   const references = useMemo(() => collectWebsiteReferences(conversation), [conversation])
   const fileReferences = useMemo(() => collectFileReferences(conversation), [conversation])
-  const [openError, setOpenError] = useState<string>()
-
-  async function openFile(source: QuestionSource) {
-    if (!source.source_file_version_id) return
-    const isPdf = source.mime_type === 'application/pdf'
-      || (source.mime_type == null && /\.pdf$/i.test(source.filename))
-    const target = isPdf ? window.open('about:blank', '_blank') : null
-    if (target) target.opener = null
-    try {
-      const blob = await getOriginalSourceFile(accessToken, source.source_file_version_id)
-      const objectUrl = URL.createObjectURL(blob)
-      if (isPdf) {
-        if (!target) {
-          URL.revokeObjectURL(objectUrl)
-          throw new Error('Popup blocked')
-        }
-        target.location.href = `${objectUrl}${source.page_start ? `#page=${source.page_start}` : ''}`
-      } else {
-        const link = document.createElement('a')
-        link.href = objectUrl
-        link.download = 'source.txt'
-        link.click()
-      }
-      window.setTimeout(() => URL.revokeObjectURL(objectUrl), 300_000)
-      setOpenError(undefined)
-    } catch {
-      target?.close()
-      setOpenError('Không thể mở file gốc. Vui lòng thử lại hoặc kiểm tra quyền truy cập.')
-    }
-  }
+  const { openFile, feedback } = useCitationFile(accessToken)
 
   useEffect(() => {
     const mobileMedia = window.matchMedia('(max-width: 900px)')
@@ -196,7 +134,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
         </header>
 
         <div className="reference-sources-panel__body">
-          {openError && <p role="alert">{openError}</p>}
+          {feedback && <p role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
           {references.length === 0 && fileReferences.length === 0 ? (
             <p className="reference-sources-panel__empty">
               Chưa có nguồn tham khảo trong cuộc trò chuyện này.
@@ -208,7 +146,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
                 {fileReferences.map((source, index) => (
                   <li key={`${source.source_file_version_id ?? 'legacy'}:${source.chunk_id}:${source.page_start ?? ''}`}>
                     {source.source_file_version_id ? (
-                      <button type="button" onClick={() => void openFile(source)}>
+                      <button type="button" onClick={() => void openFile(source, source.mime_type === 'text/plain' || (source.mime_type == null && /\.txt$/i.test(source.filename)))}>
                         <span className="reference-source__number" aria-hidden="true">{index + 1}</span>
                         <span className="reference-source__content">
                           <strong>{source.filename}</strong>
@@ -218,7 +156,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
                     ) : (
                       <span className="reference-source__content">
                         <strong>{source.filename}</strong>
-                        <span>Chưa lưu file gốc; không thể mở từ citation cũ.</span>
+                        <span>Chưa lưu file gốc cho trích dẫn này.</span>
                       </span>
                     )}
                   </li>

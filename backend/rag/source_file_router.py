@@ -1,6 +1,7 @@
 """Authenticated access to immutable originals cited in a user's conversation."""
 
 from typing import Annotated
+from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,6 +18,35 @@ from rag.source_files import read_version
 
 router = APIRouter()
 _MEDIA_TYPES = {"application/pdf": "source.pdf", "text/plain": "source.txt"}
+
+
+def source_file_response(version: SourceFileVersion, *, download_filename: str | None = None) -> Response:
+    fallback = _MEDIA_TYPES.get(version.mime_type)
+    if fallback is None:
+        raise HTTPException(status_code=404, detail="Source file not found")
+
+    disposition = f'inline; filename="{fallback}"'
+    if download_filename is not None:
+        basename = download_filename.replace("\\", "/").rsplit("/", 1)[-1]
+        basename = "".join(char for char in basename if char.isprintable()).strip()
+        filename = basename if basename not in ("", ".", "..") else fallback
+        disposition = (
+            f'attachment; filename="{fallback}"; '
+            f"filename*=UTF-8''{quote(filename, safe='')}"
+        )
+
+    try:
+        content = read_version(version.id, version.mime_type, version.content_hash, version.byte_size)
+    except OSError as error:
+        raise HTTPException(status_code=503, detail="Source file is unavailable") from error
+    return Response(
+        content=content, media_type=version.mime_type,
+        headers={
+            "Content-Disposition": disposition,
+            "Cache-Control": "no-store",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.get("/source-files/{version_id}")
@@ -46,20 +76,7 @@ def open_source_file(
             if owned_citation is None:
                 # Do not disclose whether the version exists to another user.
                 raise HTTPException(status_code=404, detail="Source file not found")
-        try:
-            content = read_version(
-                version.id, version.mime_type, version.content_hash, version.byte_size
-            )
-        except OSError as error:
-            raise HTTPException(status_code=503, detail="Source file is unavailable") from error
-        return Response(
-            content=content, media_type=version.mime_type,
-            headers={
-                "Content-Disposition": f'inline; filename="{_MEDIA_TYPES[version.mime_type]}"',
-                "Cache-Control": "no-store",
-                "X-Content-Type-Options": "nosniff",
-            },
-        )
+        return source_file_response(version)
     except SQLAlchemyError as error:
         raise HTTPException(status_code=503, detail="Source file is unavailable") from error
     finally:

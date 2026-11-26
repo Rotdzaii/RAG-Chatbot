@@ -229,8 +229,9 @@ export type QuestionStage = 'query' | 'retrieval' | 'generation' | 'web_search' 
 export async function getOriginalSourceFile(
   accessToken: string | undefined,
   versionId: string,
+  signal?: AbortSignal,
 ): Promise<Blob> {
-  const response = await authorizedRequest(`/source-files/${encodeURIComponent(versionId)}`, accessToken)
+  const response = await authorizedRequest(`/source-files/${encodeURIComponent(versionId)}`, accessToken, { signal })
   return response.blob()
 }
 

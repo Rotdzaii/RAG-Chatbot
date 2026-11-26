@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import type { KnowledgeSource } from './adminApi'
 
-export type SourceAction = 'details' | 'original' | 'metadata' | 'replace' | 'refresh' | 'status' | 'delete'
+export type SourceAction = 'details' | 'original' | 'download' | 'metadata' | 'replace' | 'refresh' | 'status' | 'delete'
 
 export function SourceActions({ source, busy, onAction }: {
   source: KnowledgeSource; busy: boolean; onAction: (action: SourceAction, source: KnowledgeSource) => void
@@ -23,6 +23,7 @@ export function SourceActions({ source, busy, onAction }: {
     ['details', 'Xem chi tiết'],
   ]
   if (source.source_type === 'url') items.push(['original', 'Mở trang gốc'])
+  else items.push(['download', 'Tải tệp gốc'])
   items.push(
     ['metadata', 'Sửa thông tin'], [source.source_type === 'file' ? 'replace' : 'refresh', source.source_type === 'file' ? 'Thay file' : 'Cập nhật từ liên kết'],
     ['status', source.is_active ? 'Tạm ngưng sử dụng' : 'Cho phép sử dụng'], ['delete', 'Xóa tài liệu'],

@@ -599,8 +599,10 @@ function App() {
               ) : (
                 <>
                   <ChatTranscript
+                    key={activeConversation.id}
                     turns={activeConversation.turns}
                     isRequestPending={requestPending}
+                    accessToken={accessToken}
                     containerRef={transcriptRef}
                     onScroll={() => {
                       const element = transcriptRef.current
@@ -618,10 +620,11 @@ function App() {
 
           {activeConversation && (
             <ReferenceSourcesPanel
+              key={activeConversation.id}
               conversation={activeConversation}
               isOpen={referencePanelOpen}
               onClose={closeReferencePanel}
-              accessToken={session?.access_token}
+              accessToken={accessToken}
             />
           )}
         </div>

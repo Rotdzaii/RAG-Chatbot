@@ -10,6 +10,7 @@ import tempfile
 from types import ModuleType, SimpleNamespace
 import unittest
 from unittest.mock import patch
+from urllib.parse import quote
 from uuid import UUID, uuid4
 
 from alembic.migration import MigrationContext
@@ -250,12 +251,25 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
         for mime, name, old, new in cases:
             with self.subTest(mime=mime):
                 document_id = self.upload(old, mime, name)
+                download_path = f"/admin/knowledge-sources/{document_id}/file"
+                self.assertEqual(self.client.get(download_path).content, old)
                 first = self.ask()
                 old_version = first["sources"][0]["source_file_version_id"]
                 self.assertIsNotNone(old_version)
                 self.assertEqual(self.client.get(f"/source-files/{old_version}").content, old)
-                replaced = self.client.put(f"/admin/knowledge-sources/{document_id}/file", files={"file": ("revised-" + name, new, mime)})
+                updated_name = "Bản cập nhật " + name
+                replaced = self.client.put(download_path, files={"file": (updated_name, new, mime)})
                 self.assertEqual(replaced.status_code, 200, replaced.text)
+                download = self.client.get(download_path, headers={"Origin": "http://localhost:5173"})
+                self.assertEqual(download.status_code, 200)
+                self.assertEqual(download.content, new)
+                self.assertEqual(download.headers["content-type"].split(";")[0], mime)
+                self.assertEqual(download.headers["cache-control"], "no-store")
+                self.assertIn("Content-Disposition", download.headers["access-control-expose-headers"])
+                self.assertEqual(
+                    download.headers["content-disposition"],
+                    f"attachment; filename=\"{name}\"; filename*=UTF-8''{quote(updated_name, safe='')}",
+                )
                 with self.sessions() as session:
                     current = session.scalar(select(Chunk).where(Chunk.document_id == document_id))
                     new_version = str(current.source_file_version_id)
@@ -271,12 +285,29 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
                 self.assertEqual([item["source_file_version_id"] for item in citations], [old_version, new_version])
                 # Deletion revokes every version while the saved answer remains.
                 self.assertEqual(self.client.delete(f"/admin/knowledge-sources/{document_id}").status_code, 204)
+                self.assertEqual(self.client.get(download_path).status_code, 404)
                 for version in (old_version, new_version):
                     self.assertEqual(self.client.get(f"/source-files/{version}").status_code, 404)
                 with self.sessions() as session:
                     self.assertEqual(session.scalar(select(func.count(SourceFileVersion.id)).where(SourceFileVersion.document_id == document_id)), 0)
                     self.assertEqual(session.scalar(select(func.count(Message.id)).where(Message.conversation_id == UUID(first["conversation_id"]))), 4)
                 self.assertEqual(list(self.storage.iterdir()), [])
+
+    def test_admin_download_rejects_regular_user_and_missing_original(self):
+        document_id = self.upload()
+        path = f"/admin/knowledge-sources/{document_id}/file"
+        del app.dependency_overrides[require_admin]
+        self.assertEqual(self.client.get(path).status_code, 403)
+
+        app.dependency_overrides[get_authenticated_user] = lambda: AuthenticatedUser(self.admin_id)
+        self.assertEqual(self.client.get(path).content, b"old source")
+        next(self.storage.glob("*.txt")).unlink()
+        missing = self.client.get(path)
+        self.assertEqual(missing.status_code, 503)
+        self.assertEqual(missing.json(), {"detail": "Source file is unavailable"})
+
+        del app.dependency_overrides[get_authenticated_user]
+        self.assertEqual(self.client.get(path).status_code, 401)
 
     def test_owner_other_user_admin_and_forged_user_citation_permissions(self):
         self.upload()

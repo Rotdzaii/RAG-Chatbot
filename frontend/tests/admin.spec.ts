@@ -83,6 +83,36 @@ test('API mock: reference catalog, real detail request, filters and keyboard men
   await page.keyboard.press('Escape'); await expect(more).toBeFocused()
 })
 
+test('downloads the stored PDF with its current filename and reports missing originals', async ({ page }) => {
+  await fixture(page)
+  const filename = 'Chương trình Marketing mới.pdf'
+  const bytes = Buffer.from('%PDF-original fixture bytes')
+  let available = true
+  await page.route(`**/admin/knowledge-sources/${file.id}/file`, route => {
+    expect(route.request().method()).toBe('GET')
+    expect(route.request().headers().authorization).toMatch(/^Bearer /)
+    return available ? route.fulfill({
+      contentType: 'application/pdf',
+      headers: {
+        'Content-Disposition': `attachment; filename="source.pdf"; filename*=UTF-8''${encodeURIComponent(filename)}`,
+        'Access-Control-Expose-Headers': 'Content-Disposition',
+      },
+      body: bytes,
+    }) : route.fulfill({ status: 404, json: { detail: 'Source file not found' } })
+  })
+  await page.goto('/admin/sources')
+
+  const ready = page.waitForEvent('download')
+  await sourceAction(page, file.filename, 'Tải tệp gốc')
+  const download = await ready
+  expect(download.suggestedFilename()).toBe(filename)
+  expect(await readFile((await download.path())!)).toEqual(bytes)
+
+  available = false
+  await sourceAction(page, file.filename, 'Tải tệp gốc')
+  await expect(page.getByRole('alert')).toContainText('Không tìm thấy tệp gốc cho tài liệu này.')
+})
+
 for (const width of [1440, 390]) {
   test(`filename search reaches later pages, resets pagination and combines filters at ${width}px`, async ({ page }) => {
     const mock = await fixture(page, { many: true })

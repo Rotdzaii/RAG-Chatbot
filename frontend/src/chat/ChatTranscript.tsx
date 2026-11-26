@@ -5,6 +5,8 @@ import { formatSourceLocator } from './sourceLocator'
 import { groupCitedSources } from './citedSources'
 import { GoogleGrounding } from './GoogleGrounding'
 import type { QuestionStage } from '../api'
+import { CitationLink } from './CitationLink'
+import { useCitationFile } from './useCitationFile'
 
 const progressLabels: Record<QuestionStage | 'sending', string> = {
   sending: 'Đang gửi câu hỏi…', query: 'Đang xử lý câu hỏi…', retrieval: 'Đang tìm tài liệu…',
@@ -17,6 +19,7 @@ const AnswerMarkdown = lazy(() => import('./AnswerMarkdown'))
 type ChatTranscriptProps = {
   turns: ChatTurn[]
   isRequestPending: boolean
+  accessToken: string | undefined
   containerRef: RefObject<HTMLDivElement | null>
   onRetry: (question: string, turnId: string) => void
   onScroll: () => void
@@ -24,7 +27,9 @@ type ChatTranscriptProps = {
   onRevealEnd: () => void
 }
 
-function AnswerSources({ answer, sources }: { answer: string; sources: QuestionSource[] }) {
+function AnswerSources({ answer, sources, onOpenFile }: {
+  answer: string; sources: QuestionSource[]; onOpenFile: (source: QuestionSource) => void
+}) {
   const groups = groupCitedSources(answer, sources)
   if (groups.length === 0) return null
 
@@ -38,8 +43,11 @@ function AnswerSources({ answer, sources }: { answer: string; sources: QuestionS
             <ol className="source-passages" aria-label={`Các đoạn trích dẫn trong ${group.filename}`}>
               {group.sources.map((source) => (
                 <li key={source.chunk_id}>
-                  <span className="citation-number" aria-label={`Trích dẫn ${source.citation}`}>[{source.citation}]</span>
-                  <span className="source-index">{formatSourceLocator(source)}</span>
+                  <CitationLink source={source} onOpenFile={onOpenFile}>
+                    <span className="citation-number">[{source.citation}]</span>
+                    {' '}
+                    <span className="source-index">{formatSourceLocator(source)}</span>
+                  </CitationLink>
                 </li>
               ))}
             </ol>
@@ -50,7 +58,9 @@ function AnswerSources({ answer, sources }: { answer: string; sources: QuestionS
   )
 }
 
-export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry, onScroll, revealTurnId, onRevealEnd }: ChatTranscriptProps) {
+export function ChatTranscript({ turns, isRequestPending, accessToken, containerRef, onRetry, onScroll, revealTurnId, onRevealEnd }: ChatTranscriptProps) {
+  const { openFile, feedback } = useCitationFile(accessToken)
+
   return (
     <>
       <h1 id="conversation-heading" className="visually-hidden">Cuộc trò chuyện</h1>
@@ -76,10 +86,10 @@ export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry,
                 <div className={revealTurnId === turn.id ? 'answer-reveal' : undefined} onAnimationEnd={onRevealEnd}>
                   {turn.response.answer && <div className="message-text answer-content">
                     <Suspense fallback={<p>{turn.response.answer}</p>}>
-                      <AnswerMarkdown answer={turn.response.answer} />
+                      <AnswerMarkdown answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile} />
                     </Suspense>
                   </div>}
-                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} />
+                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile} />
                   {turn.response.grounding && <GoogleGrounding result={turn.response.grounding} />}
                 </div>
               )}
@@ -95,6 +105,7 @@ export function ChatTranscript({ turns, isRequestPending, containerRef, onRetry,
           </section>
         ))}
       </div>
+      {feedback && <p className="citation-file-feedback" role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
     </>
   )
 }

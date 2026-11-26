@@ -2,17 +2,18 @@ import { useCallback, useState } from 'react'
 import type { FormEvent } from 'react'
 import { uploadDocument } from '../api'
 import type { SourceMetadataInput } from '../api'
+import { downloadFile } from '../downloadFile'
 import { AdminDialog } from './AdminDialog'
 import { SourceActions } from './SourceActions'
 import type { SourceAction } from './SourceActions'
-import { deleteSource, getSource, importSourceURL, patchSourceStatus, listSources, patchSourceMetadata, refreshSourceURL, replaceSourceFile, sourceFile } from './adminApi'
+import { deleteSource, getSource, getSourceDownload, importSourceURL, patchSourceStatus, listSources, patchSourceMetadata, refreshSourceURL, replaceSourceFile, sourceDownloadError, sourceFile } from './adminApi'
 import type { KnowledgeSource } from './adminApi'
 import { useAdminMutation, useAdminResource } from './adminHooks'
 import { SourceSearch } from './SourceSearch'
 
 type Filters = SourceMetadataInput & { type: string; active: string }
 const emptyFilters: Filters = { type: '', active: '' }
-type Dialog = { action: SourceAction; source: KnowledgeSource } | { action: 'add' | 'filters' }
+type Dialog = { action: Exclude<SourceAction, 'original' | 'download'>; source: KnowledgeSource } | { action: 'add' | 'filters' }
 
 export function SourceManager({ token, onFailure }: { token: string; onFailure: (error: unknown) => void }) {
   const [offset, setOffset] = useState(0)
@@ -69,6 +70,12 @@ export function SourceManager({ token, onFailure }: { token: string; onFailure: 
   function action(action: SourceAction, item: KnowledgeSource) {
     if (action === 'original') {
       if (item.source_type === 'url' && item.source_url) window.open(item.source_url, '_blank', 'noopener,noreferrer')
+    } else if (action === 'download') {
+      void mutation.run(async () => {
+        const { blob, filename } = await getSourceDownload(token, item)
+        downloadFile(blob, filename)
+        return `Đã gửi tệp “${filename}” đến trình duyệt để tải xuống.`
+      }, undefined, sourceDownloadError)
     } else open({ action, source: item })
   }
 
