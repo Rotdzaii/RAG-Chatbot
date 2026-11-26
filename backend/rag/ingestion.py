@@ -8,7 +8,7 @@ from rag.embeddings import embed_documents
 from rag.extraction import PageSpan, extract_content
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.models import Chunk, Document, SourceFileVersion
-from rag.source_files import remove_version, store_version
+from rag.source_files import cleanup_version, store_version
 from rag.source_metadata import normalize_metadata
 
 
@@ -120,7 +120,7 @@ def ingest_document(
     except Exception:
         session.rollback()
         if stored and file_version is not None:
-            remove_version(file_version.id, mime_type)
+            cleanup_version(file_version.id, mime_type)
         raise
 
     return document

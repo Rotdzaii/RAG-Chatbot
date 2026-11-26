@@ -15,7 +15,12 @@ class Settings(BaseSettings):
     rag_generation_model: Literal["gemini-3.6-flash", "gemini-3.8-flash"] = "gemini-3.6-flash"
     supabase_url: str | None = None
     supabase_publishable_key: SecretStr | None = None
+    supabase_storage_secret_key: SecretStr | None = None
     admin_user_id: UUID | None = None
+    rag_source_file_storage: Literal["local", "supabase"] = "local"
+    rag_source_file_bucket: str = Field(
+        default="rag-source-files", pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]*$",
+    )
     rag_source_file_dir: Path = Path(__file__).resolve().parent.parent / "data" / "source_files"
     rag_tesseract_cmd: str = "tesseract"
     rag_ocr_timeout_seconds: float = Field(default=60, gt=0)

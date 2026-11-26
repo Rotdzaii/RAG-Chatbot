@@ -5,7 +5,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
-import logging
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -15,10 +14,7 @@ from sqlalchemy.orm import Session
 from rag.index_provenance import CHUNKING_PROFILE, current_embedding_profile
 from rag.ingestion import _build_chunk, _prepare_chunks
 from rag.models import Chunk, Document, SourceFileVersion
-from rag.source_files import remove_version, store_version
-
-
-logger = logging.getLogger(__name__)
+from rag.source_files import cleanup_version, store_version
 
 
 class SourceNotFound(Exception):
@@ -194,7 +190,7 @@ def replace_source(
     except Exception:
         session.rollback()
         if stored and stored_version is not None:
-            remove_version(stored_version.id, mime_type)
+            cleanup_version(stored_version.id, mime_type)
         raise
 
 
@@ -209,10 +205,7 @@ def delete_source(session: Session, source_id: UUID) -> bool:
         session.delete(document)
         session.commit()
         for version_id, mime_type in file_versions:
-            try:
-                remove_version(version_id, mime_type)
-            except OSError:
-                logger.warning("Could not remove deleted source file version %s", version_id)
+            cleanup_version(version_id, mime_type)
         return True
     except Exception:
         session.rollback()

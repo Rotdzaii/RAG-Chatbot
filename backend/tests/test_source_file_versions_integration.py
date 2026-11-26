@@ -1,5 +1,6 @@
 """Version pinning through real upload/chat/replacement, with temporary DB/files."""
 from datetime import datetime, timezone
+from hashlib import sha256
 from io import StringIO
 import json
 from pathlib import Path
@@ -16,7 +17,9 @@ from alembic.operations import Operations
 from alembic.script import ScriptDirectory
 from fastapi.testclient import TestClient
 from answer_fixture import GroundedModelStub
+from httpx import Client, MockTransport, Response
 from pgvector.sqlalchemy import VECTOR
+from pydantic import SecretStr
 from sqlalchemy import create_engine, event, func, select
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.exc import SQLAlchemyError
@@ -34,6 +37,8 @@ from main import app  # noqa: E402
 from rag.models import Chunk, Conversation, Document, Message, SourceFileVersion  # noqa: E402
 from rag.query_contract import QueryProcessingResult  # noqa: E402
 from rag.retrieval import RetrievedChunk  # noqa: E402
+from rag.source_files import store_version  # noqa: E402
+from rag.supabase_source_storage import get_supabase_source_storage  # noqa: E402
 from test_extraction import create_two_page_pdf  # noqa: E402
 
 
@@ -121,6 +126,121 @@ class SourceFileVersionsIntegrationTests(unittest.TestCase):
         response = self.client.post("/questions", json={"question": "Question", **({"conversation_id": conversation_id} if conversation_id else {})})
         self.assertEqual(response.status_code, 200, response.text)
         return response.json()
+
+    def mock_supabase(self, *, public=False):
+        objects = {}
+        requests = []
+
+        def handle(request):
+            requests.append((request.method, request.url.path))
+            self.assertEqual(request.headers["apikey"], "sb_secret_offline")
+            self.assertNotIn("authorization", request.headers)
+            path = request.url.path.removeprefix("/storage/v1/")
+            if path == "bucket/rag-source-files" and request.method == "GET":
+                return Response(200, json={"public": public})
+            if path == "object/rag-source-files" and request.method == "DELETE":
+                for key in json.loads(request.content)["prefixes"]:
+                    objects.pop(key, None)
+                return Response(200, json=[])
+            prefix = "object/authenticated/rag-source-files/" if request.method == "GET" else "object/rag-source-files/"
+            self.assertTrue(path.startswith(prefix), path)
+            key = path.removeprefix(prefix)
+            if request.method == "GET":
+                if key not in objects:
+                    return Response(400, json={"statusCode": "404", "error": "NotFound"})
+                return Response(200, content=objects[key])
+            self.assertEqual(request.method, "POST")
+            self.assertEqual(request.headers["x-upsert"], "false")
+            self.assertIn(request.headers["content-type"], {"text/plain", "application/pdf"})
+            if key in objects:
+                return Response(409, json={"error": "KeyAlreadyExists"})
+            objects[key] = request.content
+            return Response(200, json={"Key": key})
+
+        def client(**options):
+            upstream = Client(transport=MockTransport(handle), **options)
+            self.addCleanup(upstream.close)
+            return upstream
+
+        get_supabase_source_storage.cache_clear()
+        self.addCleanup(get_supabase_source_storage.cache_clear)
+        self.enterContext(patch("rag.supabase_source_storage.Client", side_effect=client))
+        self.enterContext(patch.multiple(
+            sys.modules["config"].settings, create=True,
+            rag_source_file_storage="supabase", rag_source_file_bucket="rag-source-files",
+            supabase_url="https://example.supabase.co", supabase_storage_secret_key=SecretStr("sb_secret_offline"),
+        ))
+        return objects, requests
+
+    def test_supabase_citations_survive_client_recreation_and_failed_replacement(self):
+        objects, requests = self.mock_supabase()
+        original = create_two_page_pdf("Original page", "Old last")
+        updated = create_two_page_pdf("Replacement page", "New last")
+        document_id = self.upload(original, "application/pdf", "source.pdf")
+        answer = self.ask()
+        old_version = answer["sources"][0]["source_file_version_id"]
+        original_key = f"{UUID(old_version).hex}.pdf"
+        self.assertEqual(objects, {original_key: original})
+        self.assertEqual(list(self.storage.iterdir()), [])
+
+        path = f"/admin/knowledge-sources/{document_id}/file"
+        with patch("sqlalchemy.orm.Session.commit", side_effect=SQLAlchemyError("rollback")):
+            failed = self.client.put(path, files={"file": ("revised.pdf", updated, "application/pdf")})
+        self.assertEqual(failed.status_code, 503)
+        self.assertEqual(objects, {original_key: original})
+        replaced = self.client.put(path, files={"file": ("revised.pdf", updated, "application/pdf")})
+        self.assertEqual(replaced.status_code, 200, replaced.text)
+        followup = self.ask(answer["conversation_id"])
+        new_version = followup["sources"][0]["source_file_version_id"]
+        self.assertNotEqual(old_version, new_version)
+
+        get_supabase_source_storage.cache_clear()
+        with TestClient(app) as client:
+            self.assertEqual(client.get(f"/source-files/{old_version}").content, original)
+            self.assertEqual(client.get(f"/source-files/{new_version}").content, updated)
+            outsider = AuthenticatedUser(uuid4())
+            app.dependency_overrides[get_authenticated_user] = lambda: outsider
+            checked_requests = len(requests)
+            self.assertEqual(client.get(f"/source-files/{old_version}").status_code, 404)
+            self.assertEqual(len(requests), checked_requests)
+        self.assertEqual(requests.count(("GET", "/storage/v1/bucket/rag-source-files")), 2)
+        self.assertEqual(self.client.delete(f"/admin/knowledge-sources/{document_id}").status_code, 204)
+        self.assertEqual(objects, {})
+
+    def test_supabase_migration_verifies_local_and_remote_bytes_without_overwriting(self):
+        objects, _ = self.mock_supabase()
+        script = Path(__file__).resolve().parents[2] / "scripts/migrate_source_files.py"
+        migrate_version = runpy.run_path(str(script))["migrate_version"]
+        content = b"local version"
+        version = SourceFileVersion(
+            id=uuid4(), mime_type="text/plain", content_hash=sha256(content).hexdigest(),
+            byte_size=len(content),
+        )
+        with self.assertRaises(FileNotFoundError):
+            migrate_version(version, apply=True)
+        self.assertEqual(objects, {})
+        store_version(version.id, version.mime_type, content, storage="local")
+        self.assertEqual(migrate_version(version, apply=False), "ready")
+        self.assertEqual(objects, {})
+        self.assertEqual(migrate_version(version, apply=True), "copied_and_verified")
+        self.assertEqual(migrate_version(version, apply=True), "already_verified")
+        with self.assertRaises(FileExistsError):
+            store_version(version.id, version.mime_type, b"replacement")
+        key = f"{version.id.hex}.txt"
+        self.assertEqual(objects[key], content)
+        objects[key] = b"x" * len(content)
+        with self.assertRaisesRegex(OSError, "integrity check"):
+            migrate_version(version, apply=True)
+        self.assertEqual(objects[key], b"x" * len(content))
+        self.assertEqual((self.storage / key).read_bytes(), content)
+
+    def test_supabase_public_bucket_is_rejected_before_upload(self):
+        objects, requests = self.mock_supabase(public=True)
+        response = self.client.post("/documents", files={"file": ("source.txt", b"private", "text/plain")})
+        self.assertEqual(response.status_code, 503)
+        self.assertEqual(response.json(), {"detail": "Ingestion is unavailable"})
+        self.assertEqual(objects, {})
+        self.assertEqual(requests, [("GET", "/storage/v1/bucket/rag-source-files")])
 
     def test_pdf_and_txt_old_citation_still_opens_old_bytes_after_replacement(self):
         cases = (
