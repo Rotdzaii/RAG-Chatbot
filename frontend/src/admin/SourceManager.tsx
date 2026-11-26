@@ -92,7 +92,19 @@ export function SourceManager({ token, onFailure }: { token: string; onFailure: 
       {page.loading ? <p className="admin-empty" role="status">Đang tải tài liệu…</p> : page.error ? <div className="admin-empty"><p role="alert">{page.error}</p><button className="admin-button" onClick={reload}>Thử tải lại</button></div>
         : !page.data?.items.length ? <div className="admin-empty"><h3>Chưa có tài liệu trong danh sách này</h3><p>{filename.trim() ? 'Thử từ khóa khác, xóa từ khóa hoặc thay đổi bộ lọc.' : chips.length ? 'Thử thay đổi hoặc xóa bộ lọc.' : 'Chọn + Thêm tài liệu để tải PDF, TXT hoặc nhập URL VLU.'}</p></div>
           : <ul className="admin-source-list">{page.data.items.map(item => <li className="admin-source-row" key={item.id}>
-            <div className="admin-source-name-cell"><span className={`admin-file-badge admin-file-badge--${item.source_type}`} aria-hidden="true">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'}</span><div className="admin-source-info"><h3><button className="admin-source-name" title={item.filename} onClick={() => action('details', item)}>{item.filename}</button></h3><p className="admin-source-meta">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'} · {item.chunk_count} đoạn tài liệu</p></div></div>
+            <div className="admin-source-name-cell">
+              <span className={`admin-file-badge admin-file-badge--${item.source_type}`} aria-hidden="true">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'}</span>
+              <div className="admin-source-info">
+                <h3><button className="admin-source-name" title={item.filename} onClick={() => action('details', item)}>{item.filename}</button></h3>
+                <p className="admin-source-meta">{item.source_type === 'url' ? 'URL' : item.mime_type === 'application/pdf' ? 'PDF' : 'TXT'} · {item.chunk_count} đoạn tài liệu</p>
+                {item.source_type === 'file' && (
+                  <button type="button" className="admin-source-download" disabled={mutation.pending}
+                    aria-label={`Tải tệp gốc · ${item.filename}`} onClick={() => action('download', item)}>
+                    Tải tệp gốc
+                  </button>
+                )}
+              </div>
+            </div>
             <div className="admin-source-status-cell"><span className={`admin-source-status admin-source-status--${item.is_active ? 'active' : 'inactive'}`}>{item.is_active ? 'Đang sử dụng' : 'Tạm ngưng'}</span></div><time className="admin-source-date" dateTime={item.updated_at}>{formatDate(item.updated_at, true)}</time><SourceActions source={item} busy={mutation.pending} onAction={action} />
           </li>)}</ul>}
       <div className="admin-pagination"><span>{page.data ? `Hiển thị ${page.data.items.length} / ${page.data.total} tài liệu` : ''}</span><div><button className="admin-button" disabled={!offset || page.loading || mutation.pending} onClick={() => setOffset(value => Math.max(0, value - 20))}>Trang trước</button><span>Trang {offset / 20 + 1}</span><button className="admin-button" disabled={page.loading || mutation.pending || !page.data || offset + 20 >= page.data.total} onClick={() => setOffset(value => value + 20)}>Trang sau</button></div></div>

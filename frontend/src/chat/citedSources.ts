@@ -19,10 +19,11 @@ export function groupCitedSources(answer: string, sources: QuestionSource[]): Do
   const groups = new Map<string, DocumentSources>()
   for (const source of sources) {
     if (!citedNumbers.has(source.citation)) continue
-    let group = groups.get(source.document_id)
+    const key = `${source.document_id}:${source.source_file_version_id ?? ''}`
+    let group = groups.get(key)
     if (!group) {
       group = { documentId: source.document_id, filename: source.filename, sources: [] }
-      groups.set(source.document_id, group)
+      groups.set(key, group)
     }
     if (!group.sources.some((item) => item.citation === source.citation)) {
       group.sources.push(source)

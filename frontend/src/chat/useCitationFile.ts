@@ -44,7 +44,9 @@ export function useCitationFile(accessToken: string | undefined) {
       if (controller.signal.aborted) return
       setFeedback({ kind: 'error', message: error instanceof QuestionAuthenticationError
         ? 'Phiên đăng nhập đã hết hạn. Hãy đăng nhập lại để mở tệp gốc.'
-        : 'Không thể mở file gốc. Tài liệu có thể không còn khả dụng cho trích dẫn này.' })
+        : download
+          ? 'Không thể tải tệp gốc. Tài liệu có thể không còn khả dụng cho trích dẫn này.'
+          : 'Không thể mở file gốc. Tài liệu có thể không còn khả dụng cho trích dẫn này.' })
     } finally {
       if (controller.signal.aborted) target?.close()
       request.current = null

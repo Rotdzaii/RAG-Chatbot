@@ -88,7 +88,8 @@ citation cũ và một citation mới trên bản deploy, kể cả sau restart 
 Response dùng MIME PDF/TXT, tên an toàn `source.pdf`/`source.txt`,
 `Cache-Control: no-store`, `X-Content-Type-Options: nosniff`.
 
-Trong **Quản lý tài liệu**, Admin chọn **Tải tệp gốc** ở menu của nguồn PDF/TXT.
+Trong **Quản lý tài liệu**, Admin chọn **Tải tệp gốc** ngay dưới tên nguồn PDF/TXT
+hoặc trong menu thao tác của nguồn.
 `GET /admin/knowledge-sources/{source_id}/file` tải phiên bản khớp với nội dung
 hiện tại và dùng tên file của tài liệu.
 
@@ -108,8 +109,9 @@ lại; citation đã lưu trước đó vẫn giữ nguyên.
 
 Người dùng có thể nhấp `[n]` trong câu trả lời hoặc ở **Nguồn tham chiếu**. Frontend
 đọc file qua API có Bearer token. PDF mở ở trang được dẫn qua `#page=N` và TXT mở
-để đọc trong tab mới. Bảng **Nguồn tham khảo** vẫn có thao tác tải TXT. Trích dẫn
-đã lưu mở phiên bản tương ứng và nguồn website mở liên kết gốc.
+để đọc trong tab mới. **Tải tệp gốc** xuất hiện dưới nguồn trích dẫn trong câu
+trả lời và trong bảng **Nguồn tham khảo** khi có phiên bản tệp. Trích dẫn đã lưu
+mở và tải đúng phiên bản tương ứng. Nguồn website mở liên kết gốc.
 
 ## Migration và kiểm thử
 

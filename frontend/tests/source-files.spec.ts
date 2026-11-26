@@ -48,7 +48,7 @@ test('file mock: two citations to the same document download their own TXT versi
   const mock = await historyFixture(page)
   await expect(page.locator('.reference-sources-list')).toContainText('legacy.txt')
   await expect(page.locator('.reference-sources-list')).toContainText('Chưa lưu file gốc')
-  const buttons = page.locator('.reference-sources-list button')
+  const buttons = page.locator('.reference-sources-list').getByRole('button', { name: 'Tải tệp gốc · source.txt', exact: true })
   await expect(buttons).toHaveCount(2)
   for (const [index, content] of ['original bytes', 'replacement bytes'].entries()) {
     const ready = page.waitForEvent('download')
@@ -77,7 +77,7 @@ async function capturePdfWindow(page: Page) {
 test('file mock: PDF opens the cited immutable version at its original page', async ({ page }) => {
   await capturePdfWindow(page)
   const mock = await historyFixture(page, 'application/pdf')
-  await page.locator('.reference-sources-list button').first().click()
+  await page.locator('.reference-sources-list').getByRole('button', { name: /Mở tệp gốc/ }).first().click()
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalUrl)).toBe('blob:http://127.0.0.1:5178/isolated-pdf#page=3')
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalContent)).toBe('original bytes')
   expect(await page.evaluate(() => document.documentElement.dataset.originalOpener)).toBe('null')
@@ -110,10 +110,26 @@ test('a text citation displays the original TXT in a new tab', async ({ page }) 
   await popup.close()
 })
 
+test('a visible button under the answer downloads the cited PDF with its original filename', async ({ page }) => {
+  const mock = await historyFixture(page, 'application/pdf', 200, false)
+  await page.setViewportSize({ width: 390, height: 844 })
+  const name = { name: 'Tải tệp gốc · source.pdf', exact: true }
+  const groups = page.locator('.answer-sources')
+  await expect(groups.nth(0).getByRole('button', name)).toBeVisible()
+  await expect(groups.nth(2).getByRole('button', { name: /Tải tệp gốc/ })).toHaveCount(0)
+
+  const ready = page.waitForEvent('download')
+  await groups.nth(0).getByRole('button', name).click()
+  const download = await ready
+  expect(download.suggestedFilename()).toBe('source.pdf')
+  expect(await downloadedText(download)).toBe('original bytes')
+  expect(mock.requests).toEqual([oldVersion])
+})
+
 test('file mock: unavailable or unauthorized originals show a safe error and preserve old citations', async ({ page }) => {
   await capturePdfWindow(page)
   const mock = await historyFixture(page, 'application/pdf', 404)
-  await page.locator('.reference-sources-list button').first().click()
+  await page.locator('.reference-sources-list').getByRole('button', { name: /Mở tệp gốc/ }).first().click()
   await expect(page.getByRole('alert')).toContainText('Không thể mở file gốc')
   await expect(page.getByRole('alert')).not.toContainText('private storage detail')
   expect(await page.evaluate(() => document.documentElement.dataset.originalClosed)).toBe('true')
