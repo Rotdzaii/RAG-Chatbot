@@ -22,6 +22,7 @@ app.add_middleware(
     allow_credentials=False,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
     allow_headers=["Content-Type", "Authorization"],
+    expose_headers=["Content-Disposition"],
 )
 app.include_router(documents_router)
 app.include_router(progress_router)

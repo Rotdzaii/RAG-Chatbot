@@ -29,7 +29,7 @@ export function useAdminMutation(onFailure: (error: unknown) => void) {
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   useEffect(() => { mounted.current = true; return () => { mounted.current = false } }, [])
-  async function run(operation: () => Promise<string>, onSuccess: () => void) {
+  async function run(operation: () => Promise<string>, onSuccess?: () => void, formatError = adminError) {
     if (lock.current) return
     lock.current = true
     setPending(true)
@@ -37,9 +37,9 @@ export function useAdminMutation(onFailure: (error: unknown) => void) {
     setError('')
     try {
       const message = await operation()
-      if (mounted.current) { setMessage(message); onSuccess() }
+      if (mounted.current) { setMessage(message); onSuccess?.() }
     } catch (error) {
-      if (mounted.current) { onFailure(error); setError(adminError(error)) }
+      if (mounted.current) { onFailure(error); setError(formatError(error)) }
     } finally {
       lock.current = false
       if (mounted.current) setPending(false)

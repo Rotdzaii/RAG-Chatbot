@@ -8,7 +8,7 @@ const oldVersion = '11111111-aaaa-4aaa-8aaa-111111111111'
 const newVersion = '22222222-aaaa-4aaa-8aaa-222222222222'
 const stamp = '2026-11-05T09:00:00Z'
 
-async function historyFixture(page: Page, mime = 'text/plain', status = 200) {
+async function historyFixture(page: Page, mime = 'text/plain', status = 200, openPanel = true) {
   await fixture(page)
   const file = mime === 'application/pdf' ? 'source.pdf' : 'source.txt'
   const requests: string[] = []
@@ -33,7 +33,7 @@ async function historyFixture(page: Page, mime = 'text/plain', status = 200) {
   await page.goto('/chat')
   await page.getByRole('button', { name: 'Lịch sử phiên bản', exact: true }).click()
   await expect(page.locator('.chat-turn')).toHaveCount(3)
-  await page.getByRole('button', { name: 'Xem nguồn tham khảo', exact: true }).click()
+  if (openPanel) await page.getByRole('button', { name: 'Xem nguồn tham khảo', exact: true }).click()
   return { requests }
 }
 
@@ -82,6 +82,32 @@ test('file mock: PDF opens the cited immutable version at its original page', as
   await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalContent)).toBe('original bytes')
   expect(await page.evaluate(() => document.documentElement.dataset.originalOpener)).toBe('null')
   expect(mock.requests).toEqual([oldVersion])
+})
+
+test('the citation marker and its reference card open the corresponding PDF page', async ({ page }) => {
+  await capturePdfWindow(page)
+  const mock = await historyFixture(page, 'application/pdf', 200, false)
+  const citationName = { name: 'Mở trích dẫn 1 · source.pdf', exact: true }
+  await page.locator('.answer-content').first().getByRole('button', citationName).press('Enter')
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalUrl)).toContain('#page=3')
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalContent)).toBe('original bytes')
+
+  const replacement = page.locator('.answer-sources').nth(1)
+  await expect(replacement.getByText('Trang 3', { exact: true })).toBeVisible()
+  await replacement.getByRole('button', citationName).click()
+  await expect.poll(() => page.evaluate(() => document.documentElement.dataset.originalContent)).toBe('replacement bytes')
+  expect(mock.requests).toEqual([oldVersion, newVersion])
+  await expect(page.locator('.answer-content').last().getByRole('button')).toHaveCount(0)
+})
+
+test('a text citation displays the original TXT in a new tab', async ({ page }) => {
+  const mock = await historyFixture(page, 'text/plain', 200, false)
+  const ready = page.waitForEvent('popup')
+  await page.locator('.answer-content').first().getByRole('button', { name: 'Mở trích dẫn 1 · source.txt' }).click()
+  const popup = await ready
+  await expect(popup.locator('body')).toHaveText('original bytes')
+  expect(mock.requests).toEqual([oldVersion])
+  await popup.close()
 })
 
 test('file mock: unavailable or unauthorized originals show a safe error and preserve old citations', async ({ page }) => {

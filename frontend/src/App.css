@@ -762,6 +762,22 @@ textarea:focus-visible,
 }
 
 .citation-number { flex: 0 0 auto; color: var(--vlu-red); font-weight: 700; }
+.citation-link {
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: var(--vlu-red);
+  background: transparent;
+  font: inherit;
+  font-weight: 600;
+  text-align: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.citation-link:focus-visible { outline: 2px solid var(--vlu-red); outline-offset: 2px; }
+.citation-file-feedback { margin: 4px 0 10px; font-size: 13px; }
+.citation-file-feedback[role='alert'] { color: #98283a; }
 .source-filename { display: block; overflow-wrap: anywhere; font-weight: 650; }
 .source-passages { display: flex; flex-wrap: wrap; gap: 3px 12px; margin: 4px 0 0; padding: 0; list-style: none; }
 .source-passages li { display: flex; gap: 4px; white-space: nowrap; }

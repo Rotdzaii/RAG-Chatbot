@@ -22,14 +22,14 @@ from rag.url_sources import FetchedSource, SourceFetchError  # noqa: E402
 
 
 class SourceLifecycleAPITests(unittest.TestCase):
-    def test_mutations_require_admin(self):
+    def test_file_and_mutation_routes_require_admin(self):
         for path, method in (
             ("/admin/knowledge-sources/{source_id}/refresh", "POST"),
+            ("/admin/knowledge-sources/{source_id}/file", "GET"),
             ("/admin/knowledge-sources/{source_id}/file", "PUT"),
             ("/admin/knowledge-sources/{source_id}", "DELETE"),
         ):
-            route = next(route for route in router.routes if route.path == path)
-            self.assertIn(method, route.methods)
+            route = next(route for route in router.routes if route.path == path and method in route.methods)
             self.assertIn(require_admin, [dependency.call for dependency in route.dependant.dependencies])
 
     def test_refresh_fetches_stored_url_and_replaces_same_document(self):

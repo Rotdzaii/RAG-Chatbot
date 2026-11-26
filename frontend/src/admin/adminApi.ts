@@ -52,6 +52,25 @@ export async function getStatistics(token: string, range: StatisticsRange, signa
 export async function getSource(token: string, id: string, signal?: AbortSignal): Promise<KnowledgeSource> {
   return (await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(id)}`, token, { signal })).json()
 }
+
+export async function getSourceDownload(token: string, source: KnowledgeSource) {
+  const response = await authorizedRequest(`/admin/knowledge-sources/${encodeURIComponent(source.id)}/file`, token)
+  const disposition = response.headers.get('Content-Disposition') ?? ''
+  const encodedName = /;\s*filename\*=UTF-8''([^;]+)/i.exec(disposition)?.[1]
+  return {
+    blob: await response.blob(),
+    filename: encodedName ? decodeURIComponent(encodedName) : source.filename,
+  }
+}
+
+export function sourceDownloadError(error: unknown) {
+  if (error instanceof ApiRequestError) {
+    if (error.status === 404) return 'Không tìm thấy tệp gốc cho tài liệu này.'
+    if (error.status === 503) return 'Không đọc được tệp gốc trong kho lưu trữ. Hãy kiểm tra tệp đã lưu rồi thử lại.'
+  }
+  return adminError(error)
+}
+
 export type SourceMutation = { document_id: string; filename: string; chunk_count: number; status: 'updated' | 'unchanged' }
 export async function listSources(token: string, offset = 0, sourceType = '', signal?: AbortSignal, limit = 20, filters: SourceMetadataInput = {}, active = '', filename = ''): Promise<SourcePage> {
   const params = new URLSearchParams({ limit: String(limit), offset: String(offset) })
