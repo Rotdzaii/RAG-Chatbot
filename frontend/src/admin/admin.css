@@ -112,6 +112,20 @@
 .admin-shell .admin-source-name { display: block; max-width: 100%; border: 0; background: transparent; padding: 0; text-align: left; color: var(--vlu-navy); font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .admin-source-name:hover { color: var(--vlu-red); text-decoration: underline; }
 .admin-source-meta { margin: 5px 0 0; font-size: 11px; line-height: 1.6; color: var(--admin-muted); }
+.admin-shell .admin-source-download {
+  margin-top: 4px;
+  min-height: 32px;
+  padding: 3px 8px;
+  border: 1px solid var(--admin-border);
+  border-radius: 6px;
+  color: var(--vlu-red);
+  background: #fff;
+  font-size: 12px;
+  font-weight: 600;
+}
+.admin-source-download:hover:not(:disabled) { text-decoration: underline; }
+.admin-source-download:focus-visible { outline: 2px solid var(--vlu-red); outline-offset: 2px; }
+.admin-source-download:disabled { opacity: .6; }
 .admin-source-date { font-size: 12px; color: var(--admin-muted); }
 .admin-source-status::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
 .admin-source-status { gap: 5px; }

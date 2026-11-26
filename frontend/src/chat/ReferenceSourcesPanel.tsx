@@ -3,6 +3,7 @@ import type { QuestionSource } from '../api'
 import type { Conversation } from './types'
 import { groupCitedSources, toWebsiteReference } from './citedSources'
 import { useCitationFile } from './useCitationFile'
+import { CitationDownloadButton } from './CitationDownloadButton'
 
 type ReferenceSourcesPanelProps = {
   conversation: Conversation
@@ -146,13 +147,17 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
                 {fileReferences.map((source, index) => (
                   <li key={`${source.source_file_version_id ?? 'legacy'}:${source.chunk_id}:${source.page_start ?? ''}`}>
                     {source.source_file_version_id ? (
-                      <button type="button" onClick={() => void openFile(source, source.mime_type === 'text/plain' || (source.mime_type == null && /\.txt$/i.test(source.filename)))}>
-                        <span className="reference-source__number" aria-hidden="true">{index + 1}</span>
-                        <span className="reference-source__content">
-                          <strong>{source.filename}</strong>
-                          <span>{source.page_start ? `Trang ${source.page_start}${source.page_end && source.page_end !== source.page_start ? `–${source.page_end}` : ''}` : `Đoạn ${source.chunk_index + 1}`} · {source.mime_type === 'text/plain' ? 'Tải TXT' : 'Mở file gốc'}</span>
-                        </span>
-                      </button>
+                      <div className="reference-source-file">
+                        <button type="button" className="reference-source-file__open" onClick={() => void openFile(source)}>
+                          <span className="reference-source__number" aria-hidden="true">{index + 1}</span>
+                          <span className="reference-source__content">
+                            <strong>{source.filename}</strong>
+                            <span>{source.page_start ? `Trang ${source.page_start}${source.page_end && source.page_end !== source.page_start ? `–${source.page_end}` : ''}` : `Đoạn ${source.chunk_index + 1}`} · Mở tệp gốc</span>
+                          </span>
+                        </button>
+                        <CitationDownloadButton filename={source.filename} disabled={feedback?.kind === 'loading'}
+                          onClick={() => void openFile(source, true)} />
+                      </div>
                     ) : (
                       <span className="reference-source__content">
                         <strong>{source.filename}</strong>

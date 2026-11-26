@@ -102,8 +102,11 @@ test('downloads the stored PDF with its current filename and reports missing ori
   })
   await page.goto('/admin/sources')
 
+  const button = page.getByRole('button', { name: `Tải tệp gốc · ${file.filename}`, exact: true })
+  await expect(button).toBeVisible()
+  await expect(page.getByRole('button', { name: `Tải tệp gốc · ${urlSource.filename}`, exact: true })).toHaveCount(0)
   const ready = page.waitForEvent('download')
-  await sourceAction(page, file.filename, 'Tải tệp gốc')
+  await button.click()
   const download = await ready
   expect(download.suggestedFilename()).toBe(filename)
   expect(await readFile((await download.path())!)).toEqual(bytes)
