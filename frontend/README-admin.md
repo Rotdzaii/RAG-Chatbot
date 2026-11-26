@@ -1,27 +1,20 @@
 # Giao diện quản trị
 
-Chạy frontend bằng `npm run dev`, đăng nhập tài khoản được backend cấp quyền
-admin; đăng nhập từ `/login` hoặc mở `/` sẽ vào `/admin` (chuyển đến
-`/admin/sources`), tài khoản thường vào `/chat`. Đường dẫn cũ
-`/admin/notifications` chuyển về danh sách nguồn; không còn mục Thông báo.
-Dùng cấu hình Auth/API hiện có; không cần thêm UUID
-admin hoặc thông tin bí mật vào frontend.
+Chạy frontend bằng `npm run dev`. Khi mở `/` hoặc `/login` với phiên còn hợp lệ,
+admin vào trang tổng quan `/admin`, tài khoản thường vào `/chat`.
 
-Backend chưa có API role riêng. Trang dùng `GET /admin/knowledge-sources?limit=1`
-để kiểm tra quyền, dùng chung kết quả trong bộ nhớ giữa điều hướng sau đăng
-nhập, trang admin và liên kết “Mở trang quản trị” ở khu vực tài khoản trong chat.
-Không xác định quyền bằng email, tên hoặc một cờ role tự lưu ở localStorage.
-Trước khi xác nhận xong, màn đăng nhập/đường dẫn mặc định hiển thị trạng thái
-chờ. Lỗi mạng/5xx hiển thị lỗi và cho thử lại, không chuyển ngầm sang chat.
-Backend vẫn xác thực
-Bearer token và quyền admin trên từng request. HTTP 401 hiển thị yêu cầu đăng
-nhập lại; HTTP 403 chặn nội dung quản trị, không đăng xuất tài khoản người dùng.
+Frontend dùng `GET /auth/session` để xác nhận quyền của tài khoản đang đăng nhập.
+Backend xác minh Bearer token và trả vai trò của chính tài khoản đó. Trong lúc
+chờ xác nhận, ứng dụng hiển thị màn hình tải. Lỗi mạng hoặc 5xx cho phép thử lại.
 
-Khi admin chọn “Về trò chuyện”, có thể mở lại quản trị từ liên kết ở khu vực
-tài khoản. Mở trực tiếp hoặc reload `/chat` vẫn ở chat. Refresh token chỉ xác
-nhận lại quyền, không tự đổi trang. Nếu đăng nhập được yêu cầu bởi một đường
-dẫn `/chat` hoặc `/admin/...` cụ thể, đường dẫn đó được giữ sau đăng nhập và
-trang admin vẫn kiểm tra quyền.
+Mọi đường dẫn dưới `/admin` đều kiểm tra quyền trước khi hiển thị giao diện.
+Khách được đưa đến `/login`, tài khoản thường được đưa về `/chat`. Sau đăng nhập,
+admin có thể quay lại trang quản trị hợp lệ đã mở trước đó. Đường dẫn cũ
+`/admin/notifications` đưa admin về danh sách nguồn.
+
+Backend xác thực Bearer token và quyền trên từng request quản trị. Khi request
+trả 401, ứng dụng yêu cầu đăng nhập lại. Khi request trả 403 do mất quyền quản
+trị, ứng dụng đưa tài khoản về `/chat` và giữ phiên đăng nhập.
 
 ## Đối chiếu tài khoản chưa được nhận là admin
 

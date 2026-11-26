@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { PropsWithChildren } from 'react'
-import { ApiRequestError, QuestionAuthenticationError } from '../api'
-import { adminError, listSources } from '../admin/adminApi'
+import { ApiNetworkError, ApiRequestError, authorizedRequest, QuestionAuthenticationError } from '../api'
 import { AdminAccessContext } from './AdminAccessContext'
 import type { AdminAccessStatus } from './AdminAccessContext'
 import { useAuth } from './useAuth'
@@ -21,15 +20,25 @@ export function AdminAccessProvider({ children }: PropsWithChildren) {
   useEffect(() => {
     if (!token || isLoading) return
     const controller = new AbortController()
-    // The protected backend endpoint is the authority; no role is persisted locally.
-    void listSources(token, 0, '', controller.signal, 1).then(() => {
-      if (!controller.signal.aborted) setResult({ key, status: 'admin' })
-    }).catch((error: unknown) => {
-      if (controller.signal.aborted) return
-      if (error instanceof QuestionAuthenticationError) setResult({ key, status: 'expired' })
-      else if (error instanceof ApiRequestError && error.status === 403) setResult({ key, status: 'user' })
-      else setResult({ key, status: 'error', error: adminError(error) })
-    })
+    void authorizedRequest('/auth/session', token, { signal: controller.signal })
+      .then(response => response.json())
+      .then((body: { role?: unknown } | null) => {
+        if (controller.signal.aborted) return
+        const role = body?.role
+        if (role !== 'admin' && role !== 'user') throw new Error('Invalid session role')
+        setResult({ key, status: role })
+      })
+      .catch((error: unknown) => {
+        if (controller.signal.aborted) return
+        if (error instanceof QuestionAuthenticationError) {
+          setResult({ key, status: 'expired' })
+          return
+        }
+        const message = error instanceof ApiNetworkError
+          ? 'Không kết nối được máy chủ. Kiểm tra kết nối rồi thử lại.'
+          : 'Chưa xác nhận được quyền của phiên đăng nhập. Vui lòng thử lại.'
+        setResult({ key, status: 'error', error: message })
+      })
     return () => controller.abort()
   }, [token, isLoading, key])
 

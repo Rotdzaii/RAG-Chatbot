@@ -148,6 +148,36 @@ class AdminAuthenticationTests(unittest.TestCase):
         self.assertEqual(response.json(), {"detail": "Admin access required"})
         session_local.assert_not_called()
 
+    def test_session_role_uses_verified_account_and_exposes_no_account_data(self) -> None:
+        admin_id = uuid4()
+        client = Mock()
+        with (
+            patch.dict(sys.modules, {"config": auth_config(admin_user_id=admin_id)}),
+            patch("auth._get_supabase_client", return_value=client),
+        ):
+            for user_id, expected_role in ((uuid4(), "user"), (admin_id, "admin")):
+                with self.subTest(role=expected_role):
+                    client.auth.get_claims.return_value = {
+                        "claims": {"sub": str(user_id), "role": "authenticated"}
+                    }
+                    response = self.client.get(
+                        "/auth/session", headers={"Authorization": f"Bearer {TOKEN}"}
+                    )
+                    self.assertEqual(response.status_code, 200)
+                    self.assertEqual(response.json(), {"role": expected_role})
+                    self.assertEqual(response.headers["cache-control"], "no-store")
+
+    def test_session_role_requires_a_valid_token(self) -> None:
+        client = Mock()
+        client.auth.get_claims.side_effect = AuthInvalidJwtError("invalid token")
+        with patch("auth._get_supabase_client", return_value=client):
+            missing = self.client.get("/auth/session")
+            invalid = self.client.get(
+                "/auth/session", headers={"Authorization": f"Bearer {TOKEN}"}
+            )
+        self.assertEqual(missing.status_code, 401)
+        self.assertEqual(invalid.status_code, 401)
+
     def test_authenticated_configured_admin_can_use_existing_endpoint(self) -> None:
         admin_id = uuid4()
         session = Mock()

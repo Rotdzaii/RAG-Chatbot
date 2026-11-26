@@ -1,8 +1,11 @@
-from fastapi import FastAPI, HTTPException
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
+from auth import AuthenticatedUser, get_account_role, get_authenticated_user
 from database import engine
 from rag.admin_router import router as admin_router
 from rag.admin_statistics import router as admin_statistics_router
@@ -26,6 +29,15 @@ app.include_router(source_file_router)
 app.include_router(conversation_router)
 app.include_router(admin_router)
 app.include_router(admin_statistics_router)
+
+
+@app.get("/auth/session")
+def session_access(
+    response: Response,
+    user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
+) -> dict[str, str]:
+    response.headers["Cache-Control"] = "no-store"
+    return {"role": get_account_role(user)}
 
 
 @app.get("/health")

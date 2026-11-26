@@ -62,10 +62,14 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
     if (url.origin !== 'http://127.0.0.1:48080') { await route.abort(); return }
     requests.push(request)
     expect(validTokens.has(request.headers().authorization?.replace('Bearer ', ''))).toBe(true)
-    if (url.pathname === '/admin/knowledge-sources' && url.searchParams.get('limit') === '1') {
+    if (url.pathname === '/auth/session') {
       if (holdPermission) await holdPermission
       if (permissionError === 'network') { await route.abort(); return }
-      if (permissionError) { await route.fulfill({ status: permissionError, json: { detail: 'permission unavailable' } }); return }
+      const status = permissionError || (options.denied === 401 ? 401 : 200)
+      const body = status === 200
+        ? { role: options.denied === 403 ? 'user' : 'admin' }
+        : { detail: 'permission unavailable' }
+      await route.fulfill({ status, json: body }); return
     }
     if (options.denied && url.pathname.startsWith('/admin')) { await route.fulfill({ status: options.denied, json: { detail: 'denied' } }); return }
     if (url.pathname === '/admin/statistics' && request.method() === 'GET') {
@@ -78,8 +82,8 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
     if (isMutation && holdMutation) await holdMutation
     if (isMutation && mutationError) { await route.fulfill({ status: mutationError, json: { detail: 'private raw provider error' } }); return }
     if (url.pathname === '/admin/knowledge-sources' && request.method() === 'GET') {
-      if (holdList && url.searchParams.get('limit') !== '1') await holdList
-      if (listError && url.searchParams.get('limit') !== '1') { await route.fulfill({ status: listError, json: { detail: 'unavailable' } }); return }
+      if (holdList) await holdList
+      if (listError) { await route.fulfill({ status: listError, json: { detail: 'unavailable' } }); return }
       const type = url.searchParams.get('source_type')
       const category = url.searchParams.get('category')?.normalize('NFC').trim().replace(/\s+/g, ' ')
       const audience = url.searchParams.get('audience')?.normalize('NFC').trim().replace(/\s+/g, ' ')

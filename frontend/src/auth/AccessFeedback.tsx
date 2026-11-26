@@ -29,9 +29,8 @@ export function AccessFeedback() {
   if (status === 'checking' || status === 'anonymous') return <AuthLoadingScreen label="Đang xác nhận quyền truy cập…" />
   return <div className="access-feedback">
     <Link to="/"><img src={vluLogo} width="148" alt="Đại học Văn Lang" /></Link>
-    <main><h1>{status === 'user' ? 'Bạn chưa có quyền quản trị' : status === 'expired' ? 'Phiên đăng nhập đã hết hạn' : 'Chưa thể xác nhận quyền truy cập'}</h1>
-      {status === 'user' ? <p>Trang này dành cho tài khoản quản trị được cấp quyền.</p>
-        : status === 'expired' ? <><p>Đăng nhập lại để tiếp tục.</p><button className="access-feedback__button" disabled={pending} onClick={() => void loginAgain()}>Đăng nhập lại</button>{signOutError && <p role="alert">{signOutError}</p>}</>
+    <main><h1>{status === 'expired' ? 'Phiên đăng nhập đã hết hạn' : 'Chưa thể xác nhận quyền truy cập'}</h1>
+      {status === 'expired' ? <><p>Đăng nhập lại để tiếp tục.</p><button className="access-feedback__button" disabled={pending} onClick={() => void loginAgain()}>Đăng nhập lại</button>{signOutError && <p role="alert">{signOutError}</p>}</>
           : <><p role="alert">{error}</p><button className="access-feedback__button" onClick={retry}>Thử lại</button></>}
       <Link className="access-feedback__chat" to="/chat">Về trò chuyện</Link>
     </main>
