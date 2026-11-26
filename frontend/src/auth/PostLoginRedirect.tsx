@@ -6,9 +6,7 @@ export function PostLoginRedirect({ intendedRoute }: { intendedRoute?: string })
   const { status } = useAdminAccess()
   if (status !== 'admin' && status !== 'user') return <AccessFeedback />
   const intendedPath = intendedRoute?.split(/[?#]/, 1)[0]
-  const intendedAdminPage = intendedPath && (matchPath('/admin', intendedPath) || matchPath('/admin/sources', intendedPath))
-  const destination = status === 'admin'
-    ? (intendedRoute && intendedAdminPage ? intendedRoute : '/admin')
-    : (intendedRoute ?? '/chat')
-  return <Navigate to={destination} replace />
+  const allowedPaths = status === 'admin' ? ['/admin', '/admin/sources', '/admin/notifications'] : ['/chat']
+  const canResume = intendedPath && allowedPaths.some(path => matchPath(path, intendedPath))
+  return <Navigate to={canResume && intendedRoute ? intendedRoute : allowedPaths[0]} replace />
 }

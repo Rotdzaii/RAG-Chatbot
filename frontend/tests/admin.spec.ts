@@ -296,29 +296,60 @@ test('API mock: loading and safe list errors, URL validation, 401/403 remove con
     await dialog.getByLabel('Địa chỉ liên kết').fill('https://www.vlu.edu.vn/new-source')
     mock.failMutations(status)
     await dialog.getByRole('button', { name: 'Thêm tài liệu', exact: true }).click()
-    await expect(page.getByRole('heading', { name: status === 401 ? 'Phiên đăng nhập đã hết hạn' : 'Bạn chưa có quyền quản trị' })).toBeVisible()
+    if (status === 401) {
+      await expect(page.getByRole('heading', { name: 'Phiên đăng nhập đã hết hạn' })).toBeVisible()
+    } else {
+      await expect(page).toHaveURL(/\/chat$/)
+    }
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await page.close()
   }
 })
 
-test('guest redirected, nonadmin forbidden and expired session can log in again', async ({ browser }) => {
-  for (const denied of [0, 403, 401]) {
+test('guest redirected and expired session can log in again without the admin layout', async ({ browser }) => {
+  for (const denied of [0, 401]) {
     const page = await browser.newPage()
     const mock = await fixture(page, { auth: denied !== 0, denied })
     await page.goto('http://127.0.0.1:5178/admin/sources')
     if (!denied) { await expect(page).toHaveURL(/\/login$/); expect(mock.requests).toHaveLength(0) }
-    if (denied === 403) {
-      await expect(page.getByRole('heading', { name: 'Bạn chưa có quyền quản trị' })).toBeVisible()
-      await expect(page.getByRole('button', { name: 'Thêm tài liệu' })).toHaveCount(0)
-    }
     if (denied === 401) {
       await expect(page.getByRole('heading', { name: 'Phiên đăng nhập đã hết hạn' })).toBeVisible()
       await page.getByRole('button', { name: 'Đăng nhập lại' }).click()
       await expect(page).toHaveURL(/\/login$/)
     }
+    await expect(page).not.toHaveTitle(/admin/i)
     await page.close()
   }
+})
+
+test('ordinary user opening any admin URL stays out of the admin layout and returns to chat', async ({ page }) => {
+  const mock = await fixture(page, { denied: 403 })
+  let release!: () => void
+  mock.holdPermission(new Promise<void>(resolve => { release = resolve }))
+  await page.goto('/admin/sources?type=file#list')
+  await expect(page.getByText('Đang xác nhận quyền truy cập…', { exact: true })).toBeVisible()
+  await expect(page).not.toHaveTitle(/admin/i)
+  await expect(page.locator('a[href^="/admin"]')).toHaveCount(0)
+  release()
+  await expect(page).toHaveURL(/\/chat$/)
+
+  for (const path of ['/admin', '/admin/notifications', '/admin/unknown']) {
+    await page.goto(path)
+    await expect(page).toHaveURL(/\/chat$/)
+    await expect(page).not.toHaveTitle(/admin/i)
+    await expect(page.locator('a[href^="/admin"]')).toHaveCount(0)
+  }
+  expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/admin'))).toBe(false)
+})
+
+test('ordinary user signing in after opening an admin URL goes directly to chat', async ({ page }) => {
+  const mock = await fixture(page, { auth: false, denied: 403 })
+  await page.goto('/admin/sources')
+  await expect(page).toHaveURL(/\/login$/)
+  await expect(page).not.toHaveTitle(/admin/i)
+  await signIn(page)
+  await expect(page).toHaveURL(/\/chat$/)
+  expect(mock.requests.some(request => new URL(request.url()).pathname.startsWith('/admin'))).toBe(false)
 })
 
 test('admin opening chat is redirected before chat or history mount, including after token refresh', async ({ page }) => {
@@ -406,6 +437,9 @@ test('default route resolves role and admin login overrides an explicit chat ret
     await fixture(page, { denied })
     await page.goto('http://127.0.0.1:5178/')
     await expect(page).toHaveURL(denied ? /\/chat$/ : /\/admin$/)
+    await page.reload()
+    await expect(page).toHaveURL(denied ? /\/chat$/ : /\/admin$/)
+    await expect(page.getByRole('heading', { name: denied ? 'Bạn cần tìm thông tin gì tại Văn Lang?' : 'Tổng quan', exact: true })).toBeVisible()
     await page.close()
   }
   const page = await browser.newPage()

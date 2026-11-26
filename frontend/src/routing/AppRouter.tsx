@@ -20,11 +20,14 @@ function AdminArea() {
     return () => { document.title = previousTitle }
   }, [])
 
-  return <Outlet />
+  return <Suspense fallback={<AuthLoadingScreen />}><Outlet /></Suspense>
 }
 
-function AdminRoute({ section }: { section: 'overview' | 'sources' }) {
-  return <AuthGate access="protected"><Suspense fallback={<AuthLoadingScreen />}><AdminPage section={section} /></Suspense></AuthGate>
+function AdminRoute() {
+  const { status } = useAdminAccess()
+  if (status === 'user') return <Navigate to="/chat" replace />
+  if (status !== 'admin') return <AccessFeedback />
+  return <AdminArea />
 }
 
 function AdminNotFound() {
@@ -70,9 +73,9 @@ export function AppRouter() {
           </AuthGate>
         )}
       />
-      <Route path="/admin" element={<AdminArea />}>
-        <Route index element={<AdminRoute section="overview" />} />
-        <Route path="sources" element={<AdminRoute section="sources" />} />
+      <Route path="/admin" element={<AuthGate access="protected"><AdminRoute /></AuthGate>}>
+        <Route index element={<AdminPage section="overview" />} />
+        <Route path="sources" element={<AdminPage section="sources" />} />
         <Route path="notifications" element={<Navigate to="/admin/sources" replace />} />
         <Route path="*" element={<AdminNotFound />} />
       </Route>

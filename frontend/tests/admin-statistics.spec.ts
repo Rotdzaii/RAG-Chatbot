@@ -298,29 +298,35 @@ test('từ chối khách và User trước khi tải thống kê', async ({ page
   await page.route(statisticsApi, denyRequest)
   await page.goto('/admin')
   await expect(page).toHaveURL(/\/login$/)
+  await expect(page).not.toHaveTitle(adminTabTitle)
 
   const userPage = await browser.newPage({ baseURL: new URL(page.url()).origin })
   await fixture(userPage, { denied: 403 })
   await userPage.route(statisticsApi, denyRequest)
   await userPage.goto('/admin')
-  await expect(userPage.getByRole('heading', { name: 'Bạn chưa có quyền quản trị' })).toBeVisible()
-  await expect(userPage).toHaveURL(/\/admin$/)
-  await expect(userPage).toHaveTitle(adminTabTitle)
+  await expect(userPage).toHaveURL(/\/chat$/)
+  await expect(userPage).not.toHaveTitle(adminTabTitle)
   await expect(summary(userPage)).toHaveCount(0)
   expect(requests).toEqual([])
   await userPage.close()
 })
 
-test('URL frontend cũ hiển thị trang không tìm thấy cho cả khách và Admin', async ({ browser, baseURL }) => {
+test('URL frontend cũ mở trang đăng nhập cho khách và trang không tìm thấy cho Admin', async ({ browser, baseURL }) => {
   for (const auth of [false, true]) {
     const page = await browser.newPage({ baseURL })
     try {
       const mock = await fixture(page, { auth })
       await page.goto('/admin/statistics')
-      await expect(page.getByRole('heading', { name: 'Không tìm thấy trang' })).toBeVisible()
-      await expect(page).toHaveURL(/\/admin\/statistics$/)
-      await expect(page).toHaveTitle(adminTabTitle)
-      await expect(page.getByRole('link', { name: 'Về trang Tổng quan' })).toHaveAttribute('href', '/admin')
+      if (auth) {
+        await expect(page.getByRole('heading', { name: 'Không tìm thấy trang' })).toBeVisible()
+        await expect(page).toHaveURL(/\/admin\/statistics$/)
+        await expect(page).toHaveTitle(adminTabTitle)
+        await expect(page.getByRole('link', { name: 'Về trang Tổng quan' })).toHaveAttribute('href', '/admin')
+      } else {
+        await expect(page).toHaveURL(/\/login$/)
+        await expect(page).not.toHaveTitle(adminTabTitle)
+        await expect(page.locator('a[href^="/admin"]')).toHaveCount(0)
+      }
       await expect(page.getByRole('heading', { name: 'Tổng quan', exact: true })).toHaveCount(0)
       await expect(page.getByRole('heading', { name: 'Quản lý tài liệu', exact: true })).toHaveCount(0)
       expect(mock.requests.some(request => new URL(request.url()).pathname === '/admin/statistics')).toBe(false)
@@ -344,12 +350,16 @@ test('đăng nhập giữ đích Quản lý tài liệu và mở trực tiếp s
   await expect(page).toHaveTitle(adminTabTitle)
 })
 
-for (const [status, heading] of [[401, 'Phiên đăng nhập đã hết hạn'], [403, 'Bạn chưa có quyền quản trị']] as const) {
+for (const status of [401, 403]) {
   test('xử lý ' + status + ' từ API thống kê sau khi đã qua cổng quản trị', async ({ page }) => {
     await fixture(page)
     await page.route(statisticsApi, route => route.fulfill({ status, json: { detail: 'server detail' } }))
     await page.goto('/admin')
-    await expect(page.getByRole('heading', { name: heading })).toBeVisible()
+    if (status === 401) {
+      await expect(page.getByRole('heading', { name: 'Phiên đăng nhập đã hết hạn' })).toBeVisible()
+    } else {
+      await expect(page).toHaveURL(/\/chat$/)
+    }
     await expect(page.getByText('server detail')).toHaveCount(0)
     await expect(summary(page)).toHaveCount(0)
   })

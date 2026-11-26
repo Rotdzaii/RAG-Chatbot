@@ -3,7 +3,6 @@ import { Link, NavLink } from 'react-router'
 import { gsap } from 'gsap'
 import { useAuth } from '../auth/useAuth'
 import { useAdminAccess } from '../auth/useAdminAccess'
-import { AccessFeedback } from '../auth/AccessFeedback'
 import { AccountControl } from '../auth/AccountControl'
 import vluLogo from '../assets/vlu-logo.svg'
 import { SourceManager } from './SourceManager'
@@ -15,8 +14,7 @@ type AdminSection = 'overview' | 'sources'
 export function AdminPage({ section }: { section: AdminSection }) {
   const { session } = useAuth()
   const token = session?.access_token ?? ''
-  const { status, handleFailure } = useAdminAccess()
-  if (status !== 'admin') return <AccessFeedback />
+  const { handleFailure } = useAdminAccess()
   return <AdminWorkspace key={token} section={section} token={token} onFailure={handleFailure} />
 }
 

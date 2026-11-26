@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import cache
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, HTTPException, status
@@ -113,9 +113,7 @@ def get_authenticated_user(
     return AuthenticatedUser(id=user_id)
 
 
-def require_admin(
-    user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
-) -> AuthenticatedUser:
+def get_account_role(user: AuthenticatedUser) -> Literal["admin", "user"]:
     from config import settings
 
     admin_user_id = getattr(settings, "admin_user_id", None)
@@ -124,7 +122,13 @@ def require_admin(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authentication is unavailable",
         )
-    if user.id != admin_user_id:
+    return "admin" if user.id == admin_user_id else "user"
+
+
+def require_admin(
+    user: Annotated[AuthenticatedUser, Depends(get_authenticated_user)],
+) -> AuthenticatedUser:
+    if get_account_role(user) != "admin":
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Admin access required",
