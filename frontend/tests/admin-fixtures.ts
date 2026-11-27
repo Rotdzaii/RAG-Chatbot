@@ -7,6 +7,7 @@ const token = `${Buffer.from('{"alg":"HS256","typ":"JWT"}').toString('base64url'
 const session = { access_token: token, refresh_token: 'fixture-refresh', token_type: 'bearer', expires_at: 4102444800, expires_in: 3600, user }
 const file = { is_active: true, id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', filename: 'Chương trình Marketing.pdf', mime_type: 'application/pdf', source_type: 'file', source_url: null, category: null as string | null, audience: null as string | null, created_at: '2026-10-01T00:00:00Z', updated_at: '2026-10-30T08:30:00Z', last_checked_at: null, chunk_count: 17 }
 const urlSource = { ...file, id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', filename: 'Tài chính – Ngân hàng', source_type: 'url', source_url: 'https://www.vlu.edu.vn/academics/majors/tai-chinh-ngan-hang', mime_type: 'text/html', chunk_count: 26, last_checked_at: '2026-11-01T00:00:00Z' }
+const longFilename = `Chương trình đào tạo_${'kế-hoạch-học-tập_'.repeat(12)}2026.pdf`
 const unmeasured = { count: null, ratio: null }
 const emptyStatistics: Omit<AdminStatistics, 'start_date' | 'end_date'> = {
   timezone: 'Asia/Ho_Chi_Minh', data_started_at: null, outcome_denominator: 0, unclassified: 0, running: 0, cancelled: 0,
@@ -19,12 +20,17 @@ const emptyStatistics: Omit<AdminStatistics, 'start_date' | 'end_date'> = {
   cited_answer_denominator: 0, ranked_documents: [],
 }
 
-async function fixture(page: Page, options: { auth?: boolean; denied?: number; empty?: boolean; many?: boolean } = {}) {
+async function fixture(page: Page, options: { auth?: boolean; denied?: number; empty?: boolean; many?: boolean; tabSamples?: boolean } = {}) {
   const requests: Request[] = []
   const sources = options.empty ? [] : [structuredClone(file), structuredClone(urlSource)]
+  if (options.tabSamples) sources.push(
+    { ...file, id: 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', filename: longFilename },
+    { ...urlSource, id: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', filename: 'Thông tin tuyển sinh 2025', is_active: false },
+  )
   if (options.many) for (let index = 0; index < 48; index++) sources.push({ ...structuredClone(file), id: `90000000-0000-4000-8000-${String(index).padStart(12, '0')}`, filename: `Tài liệu kiểm thử ${index}.pdf` })
   let refreshStatus: 'updated' | 'unchanged' = 'unchanged'
   let mutationError = 0
+  const statusErrors = new Map<string, number>()
   let listError = 0
   let holdList: Promise<void> | undefined
   let holdMutation: Promise<void> | undefined
@@ -122,6 +128,8 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
     if (url.pathname.endsWith('/status')) {
       expect(request.method()).toBe('PATCH')
       const source = sources.find(item => url.pathname.includes(item.id))!
+      const error = statusErrors.get(source.filename)
+      if (error) { await route.fulfill({ status: error, json: { detail: 'private raw provider error' } }); return }
       source.is_active = request.postDataJSON().is_active
       await route.fulfill({ json: { id: source.id, is_active: source.is_active, updated_at: source.updated_at } }); return
     }
@@ -154,6 +162,7 @@ async function fixture(page: Page, options: { auth?: boolean; denied?: number; e
     oauthRequests,
     setOAuthOutcome: (outcome: 'success' | 'cancel' | 'error') => { oauthOutcome = outcome },
     failMutations: (status: number) => { mutationError = status },
+    failStatus: (filename: string, status: number) => { statusErrors.set(filename, status) },
     failLists: (status: number) => { listError = status },
     refreshStatus: (status: 'updated' | 'unchanged') => { refreshStatus = status },
     hold: (promise?: Promise<void>) => { holdMutation = promise },
@@ -182,4 +191,4 @@ async function signIn(page: Page) {
   await page.getByRole('button', { name: 'Đăng nhập', exact: true }).click()
 }
 
-export { fixture, file, urlSource, signIn, emptyStatistics }
+export { fixture, file, urlSource, longFilename, signIn, emptyStatistics }
