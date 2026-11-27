@@ -1,13 +1,13 @@
 import { lazy, Suspense, type RefObject } from 'react'
-import type { QuestionSource } from '../api'
 import type { ChatTurn } from './types'
-import { formatSourceLocator } from './sourceLocator'
-import { groupCitedSources } from './citedSources'
 import { GoogleGrounding } from './GoogleGrounding'
-import type { QuestionStage } from '../api'
-import { CitationLink } from './CitationLink'
-import { useCitationFile } from './useCitationFile'
+import type { QuestionSource, QuestionStage } from '../api'
 import { CitationDownloadButton } from './CitationDownloadButton'
+import { CitationLink } from './CitationLink'
+import { groupCitedSources } from './citedSources'
+import { formatSourceLocator } from './sourceLocator'
+import { citationFileError, useCitationFile } from './useCitationFile'
+import { SourceFilePreview } from '../SourceFilePreview'
 
 const progressLabels: Record<QuestionStage | 'sending', string> = {
   sending: 'Đang gửi câu hỏi…', query: 'Đang xử lý câu hỏi…', retrieval: 'Đang tìm tài liệu…',
@@ -28,10 +28,11 @@ type ChatTranscriptProps = {
   onRevealEnd: () => void
 }
 
-function AnswerSources({ answer, sources, onOpenFile, isFileLoading }: {
+function AnswerSources({ answer, sources, onOpenFile, onDownloadFile, isFileLoading }: {
   answer: string
   sources: QuestionSource[]
-  onOpenFile: (source: QuestionSource, download?: boolean) => void
+  onOpenFile: (source: QuestionSource) => void
+  onDownloadFile: (source: QuestionSource) => Promise<void>
   isFileLoading: boolean
 }) {
   const groups = groupCitedSources(answer, sources)
@@ -49,7 +50,7 @@ function AnswerSources({ answer, sources, onOpenFile, isFileLoading }: {
               <span className="source-filename">{group.filename}</span>
               <ol className="source-passages" aria-label={`Các đoạn trích dẫn trong ${group.filename}`}>
                 {group.sources.map((source) => (
-                  <li key={source.chunk_id}>
+                  <li key={source.citation}>
                     <CitationLink source={source} onOpenFile={onOpenFile}>
                       <span className="citation-number">[{source.citation}]</span>
                       {' '}
@@ -60,7 +61,7 @@ function AnswerSources({ answer, sources, onOpenFile, isFileLoading }: {
               </ol>
               {versionId && (
                 <CitationDownloadButton filename={group.filename} disabled={isFileLoading}
-                  onClick={() => onOpenFile(sourceFile, true)} />
+                  onClick={() => void onDownloadFile(sourceFile)} />
               )}
             </li>
           )
@@ -71,7 +72,7 @@ function AnswerSources({ answer, sources, onOpenFile, isFileLoading }: {
 }
 
 export function ChatTranscript({ turns, isRequestPending, accessToken, containerRef, onRetry, onScroll, revealTurnId, onRevealEnd }: ChatTranscriptProps) {
-  const { openFile, feedback } = useCitationFile(accessToken)
+  const { preview, openFile, closePreview, downloadOriginal, feedback } = useCitationFile(accessToken)
 
   return (
     <>
@@ -101,8 +102,8 @@ export function ChatTranscript({ turns, isRequestPending, accessToken, container
                       <AnswerMarkdown answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile} />
                     </Suspense>
                   </div>}
-                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources}
-                    onOpenFile={openFile} isFileLoading={feedback?.kind === 'loading'} />
+                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile}
+                    onDownloadFile={downloadOriginal} isFileLoading={feedback?.kind === 'loading'} />
                   {turn.response.grounding && <GoogleGrounding result={turn.response.grounding} />}
                 </div>
               )}
@@ -119,6 +120,7 @@ export function ChatTranscript({ turns, isRequestPending, accessToken, container
         ))}
       </div>
       {feedback && <p className="citation-file-feedback" role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
+      {preview && <SourceFilePreview file={preview} describeError={citationFileError} onClose={closePreview} />}
     </>
   )
 }

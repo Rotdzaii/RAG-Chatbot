@@ -12,6 +12,7 @@ const stamp = '2026-11-05T09:00:00Z'
 const reviewDir = process.env.CHAT_REVIEW_DIR ?? '../data/chat-progress-review'
 const source = { citation: 1, chunk_id: 'chunk-1', document_id: 'document-1', filename: 'fixture.txt', chunk_index: 0, cosine_distance: .1 }
 const answer = 'Câu trả lời đã được kiểm tra [1].'
+const renderedAnswer = 'Câu trả lời đã được kiểm tra fixture.txt.'
 
 async function streamingFixture(page: Page, history = false) {
   await fixture(page)
@@ -116,8 +117,8 @@ for (const width of [1440, 390]) {
       await mkdir(reviewDir, { recursive: true })
       await page.screenshot({ path: join(reviewDir, `chat-waiting-${width}.png`) })
       mock.success()
-      await expect(page.locator('.answer-content')).toContainText(answer)
-      await expect(page.getByRole('heading', { name: 'Nguồn tham chiếu', exact: true })).toBeVisible()
+      await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
+      await expect(page.getByRole('button', { name: 'Mở trích dẫn 1 · fixture.txt', exact: true })).toBeVisible()
       await expect(page.locator('.waiting-dot')).toHaveCount(0)
       await expect(page.locator('.waiting-shine')).toHaveCount(0)
       expect(await shineHandle!.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0)
@@ -130,11 +131,11 @@ for (const width of [1440, 390]) {
         await expect(page.getByRole('button', { name: 'Hội thoại tiến trình', exact: true })).toBeVisible()
         await page.getByRole('button', { name: 'Cuộc trò chuyện mới', exact: true }).click()
         await page.getByRole('button', { name: 'Hội thoại tiến trình', exact: true }).click()
-        await expect(page.locator('.answer-content')).toContainText(answer)
+        await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
         expect(await page.evaluate(() => document.documentElement.dataset.reveals)).toBe('1')
         await page.reload()
         await page.getByRole('button', { name: 'Hội thoại tiến trình', exact: true }).click()
-        await expect(page.locator('.answer-content')).toContainText(answer)
+        await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
         expect(await page.evaluate(() => document.documentElement.dataset.reveals)).toBeUndefined()
         await expect(page.locator('.answer-reveal')).toHaveCount(0)
       }
@@ -160,7 +161,7 @@ for (const failure of ['error-event', 'disconnect']) {
       expect(retry.body).toEqual(first.body)
       await expect(page.locator('.user-message')).toHaveCount(1)
       mock.success(1)
-      await expect(page.locator('.answer-content')).toContainText(answer)
+      await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
       await expect(page.locator('.message-error')).toHaveCount(0)
     } finally { await mock.close() }
   })
@@ -184,7 +185,7 @@ test('SSE HTTP mock: reading history and switching conversations preserve scroll
       expect(await transcript.evaluate(element => element.scrollTop)).toBe(before)
     }
     mock.success()
-    await expect(page.locator('.answer-content').last()).toContainText(answer)
+    await expect(page.locator('.answer-content').last()).toContainText(renderedAnswer)
     expect(await transcript.evaluate(element => element.scrollTop)).toBe(before)
     await expect(transcript).toBeFocused()
     await page.getByRole('button', { name: 'Cuộc trò chuyện mới', exact: true }).click()
@@ -201,7 +202,7 @@ test('SSE HTTP mock: reading history and switching conversations preserve scroll
     expect(await transcript.evaluate(element => element.scrollTop)).toBe(scroll)
     await expect(page.locator('.waiting-message')).toHaveCount(0)
     await page.getByRole('button', { name: 'Hội thoại tiến trình', exact: true }).click()
-    await expect(page.locator('.answer-content')).toContainText(answer)
+    await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
     expect(await page.evaluate(() => document.documentElement.dataset.reveals)).toBe(reveals)
     await expect(page.locator('.answer-reveal')).toHaveCount(0)
   } finally { await mock.close() }
@@ -218,7 +219,7 @@ test('SSE HTTP mock: reduced motion is static and never replays completion after
     mock.stage(0, 'generation')
     await expect(page.locator('.waiting-message')).toHaveText('Đang soạn câu trả lời…')
     mock.success()
-    await expect(page.locator('.answer-content')).toContainText(answer)
+    await expect(page.locator('.answer-content')).toContainText(renderedAnswer)
     await expect(page.locator('.answer-reveal')).toHaveCount(0)
     await page.emulateMedia({ reducedMotion: 'no-preference' })
     expect(await page.evaluate(() => document.documentElement.dataset.reveals)).toBeUndefined()
