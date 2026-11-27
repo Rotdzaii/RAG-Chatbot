@@ -26,8 +26,9 @@ export function SourceActions({ source, busy, onAction }: {
   else items.push(['download', 'Tải tệp gốc'])
   items.push(
     ['metadata', 'Sửa thông tin'], [source.source_type === 'file' ? 'replace' : 'refresh', source.source_type === 'file' ? 'Thay file' : 'Cập nhật từ liên kết'],
-    ['status', source.is_active ? 'Tạm ngưng sử dụng' : 'Cho phép sử dụng'], ['delete', 'Xóa tài liệu'],
   )
+  if (source.is_active) items.push(['status', 'Tạm ngưng'])
+  items.push(['delete', 'Xóa vĩnh viễn'])
   return <>
     <button ref={trigger} type="button" className="admin-more-button" title={`Thao tác với ${source.filename}`} aria-label={`Thao tác với ${source.filename}`} aria-haspopup="menu" aria-expanded={expanded} popoverTarget={id} disabled={busy}
       onClick={event => {
