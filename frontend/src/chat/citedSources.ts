@@ -42,16 +42,10 @@ export function toWebsiteReference(source: QuestionSource) {
     const parsedUrl = new URL(candidate)
     if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return null
 
-    parsedUrl.hash = ''
-    parsedUrl.searchParams.sort()
-    if (parsedUrl.pathname.length > 1) {
-      parsedUrl.pathname = parsedUrl.pathname.replace(/\/+$/, '')
-    }
-
     return {
-      url: parsedUrl.toString(),
+      url: parsedUrl.href,
       hostname: parsedUrl.hostname.replace(/^www\./i, ''),
-      displayUrl: `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}${parsedUrl.search}`,
+      displayUrl: `${parsedUrl.hostname}${parsedUrl.pathname === '/' ? '' : parsedUrl.pathname}${parsedUrl.search}${parsedUrl.hash}`,
     }
   } catch {
     return null

@@ -2,7 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { QuestionSource } from '../api'
 import type { Conversation } from './types'
 import { groupCitedSources, toWebsiteReference } from './citedSources'
-import { useCitationFile } from './useCitationFile'
+import { citationFileError, useCitationFile } from './useCitationFile'
+import { SourceFilePreview } from '../SourceFilePreview'
 import { CitationDownloadButton } from './CitationDownloadButton'
 
 type ReferenceSourcesPanelProps = {
@@ -52,7 +53,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
   const [isMobileDrawer, setIsMobileDrawer] = useState(() => window.matchMedia('(max-width: 900px)').matches)
   const references = useMemo(() => collectWebsiteReferences(conversation), [conversation])
   const fileReferences = useMemo(() => collectFileReferences(conversation), [conversation])
-  const { openFile, feedback } = useCitationFile(accessToken)
+  const { preview, openFile, closePreview, downloadOriginal, feedback } = useCitationFile(accessToken)
 
   useEffect(() => {
     const mobileMedia = window.matchMedia('(max-width: 900px)')
@@ -148,20 +149,20 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
                   <li key={`${source.source_file_version_id ?? 'legacy'}:${source.chunk_id}:${source.page_start ?? ''}`}>
                     {source.source_file_version_id ? (
                       <div className="reference-source-file">
-                        <button type="button" className="reference-source-file__open" onClick={() => void openFile(source)}>
+                        <button type="button" aria-haspopup="dialog" className="reference-source-file__open" onClick={() => openFile(source)}>
                           <span className="reference-source__number" aria-hidden="true">{index + 1}</span>
                           <span className="reference-source__content">
                             <strong>{source.filename}</strong>
-                            <span>{source.page_start ? `Trang ${source.page_start}${source.page_end && source.page_end !== source.page_start ? `–${source.page_end}` : ''}` : `Đoạn ${source.chunk_index + 1}`} · Mở tệp gốc</span>
+                            <span>{source.page_start ? `Trang ${source.page_start}${source.page_end && source.page_end !== source.page_start ? `–${source.page_end}` : ''}` : `Đoạn ${source.chunk_index + 1}`} · Xem trước</span>
                           </span>
                         </button>
                         <CitationDownloadButton filename={source.filename} disabled={feedback?.kind === 'loading'}
-                          onClick={() => void openFile(source, true)} />
+                          onClick={() => void downloadOriginal(source)} />
                       </div>
                     ) : (
                       <span className="reference-source__content">
                         <strong>{source.filename}</strong>
-                        <span>Chưa lưu file gốc cho trích dẫn này.</span>
+                        <span>Chưa lưu tệp gốc cho trích dẫn này.</span>
                       </span>
                     )}
                   </li>
@@ -191,6 +192,7 @@ export function ReferenceSourcesPanel({ conversation, isOpen, onClose, accessTok
           )}
         </div>
       </aside>
+      {preview && <SourceFilePreview file={preview} describeError={citationFileError} onClose={closePreview} />}
     </>
   )
 }

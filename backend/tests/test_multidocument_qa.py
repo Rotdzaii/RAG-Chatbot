@@ -70,11 +70,13 @@ class MultiDocumentTests(unittest.TestCase):
         with patch("rag.retrieval.embed_query") as embed:
             result = self.ask("VLU hiện có bao nhiêu ngành?", top_k=1,
                               filters={"category": "đào tạo", "audience": "SV"})
-        self.assertIn("Theo các tài liệu hiện có, có 2 ngành:", result["answer"])
+        self.assertTrue(result["answer"].startswith("Kho tài liệu hiện có thông tin về **2 ngành**.\n\n- "))
         self.assertIn("kiến trúc [1]", result["answer"].casefold())
-        self.assertIn("Ngôn ngữ Nhật [2]", result["answer"])
+        self.assertIn("\n- Ngôn ngữ Nhật [2]", result["answer"])
         self.assertNotRegex(result["answer"], "Y khoa|Nội thất|Âm nhạc|Du lịch")
         first, second = result["sources"]
+        self.assertEqual(first["title"].casefold(), "kiến trúc")
+        self.assertEqual(second["title"], "Ngôn ngữ Nhật")
         self.assertIn(first["document_id"], [str(a), str(duplicate)])
         self.assertEqual(second["document_id"], str(b))
         self.assertEqual([row["citation"] for row in result["sources"]], [1, 2])
@@ -238,7 +240,7 @@ class MultiDocumentTests(unittest.TestCase):
         self.seed("Ngành: Tài chính – Ngân hàng")
         self.seed("Ngành: TÀI CHÍNH-NGÂN HÀNG")
         result = self.ask("VLU có bao nhiêu ngành?")
-        self.assertIn("có 1 ngành:", result["answer"])
+        self.assertIn("**1 ngành**.", result["answer"])
         self.structured.invoke.return_value = {"action": "clarify", "clarification": "Bạn muốn xét năm nào?"}
         for question in ("VLU có bao nhiêu ngành đạt kiểm định năm 2025?",
                          "Bạn có thể trả lời về bao nhiêu ngành tuyển sinh năm 2025?"):
@@ -588,7 +590,7 @@ class MultiDocumentTests(unittest.TestCase):
         self.assertEqual([f["stage"] for f in frames if "stage" in f], ["query", "retrieval", "validation"])
         result = frames[-1]["response"]
         self.assertTrue(result["answer"].startswith("Đã xác minh 2 ngành"))
-        self.assertIn("Kiến trúc [1], Marketing [2]", result["answer"])
+        self.assertIn("- Kiến trúc [1]\n- Marketing [2]", result["answer"])
         self.assertEqual([source["page_start"] for source in result["sources"]], [1, 1])
         self.resolver.assert_not_called()
 

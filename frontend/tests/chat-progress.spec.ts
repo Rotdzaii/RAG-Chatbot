@@ -117,7 +117,7 @@ for (const width of [1440, 390]) {
       await page.screenshot({ path: join(reviewDir, `chat-waiting-${width}.png`) })
       mock.success()
       await expect(page.locator('.answer-content')).toContainText(answer)
-      await expect(page.getByRole('heading', { name: 'Nguồn tham chiếu', exact: true })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Mở trích dẫn 1 · fixture.txt', exact: true })).toBeVisible()
       await expect(page.locator('.waiting-dot')).toHaveCount(0)
       await expect(page.locator('.waiting-shine')).toHaveCount(0)
       expect(await shineHandle!.evaluate(element => element.getAnimations({ subtree: true }).length)).toBe(0)

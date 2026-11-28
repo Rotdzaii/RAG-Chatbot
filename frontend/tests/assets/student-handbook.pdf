@@ -1,0 +1,75 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [4 0 R 6 0 R 8 0 R] /Count 3 >>
+endobj
+3 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+4 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /MediaBox [0 0 595 842] /Contents 5 0 R >>
+endobj
+5 0 obj
+<< /Length 323 >>
+stream
+0.84 0.13 0.2 rg
+48 766 30 4 re f
+BT /F1 12 Tf 48 735 Td (VLU  /  STUDENT SERVICES) Tj ET
+0.12 0.13 0.32 rg
+BT /F1 28 Tf 48 682 Td (Student handbook) Tj ET
+BT /F1 13 Tf 48 638 Td (Academic calendar, registration and course planning.) Tj ET
+0.40 0.42 0.49 rg
+BT /F1 10 Tf 48 42 Td (Playwright fixture  /  Page 1 of 3) Tj ET
+endstream
+endobj
+6 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /MediaBox [0 0 595 842] /Contents 7 0 R >>
+endobj
+7 0 obj
+<< /Length 328 >>
+stream
+0.84 0.13 0.2 rg
+48 766 30 4 re f
+BT /F1 12 Tf 48 735 Td (VLU  /  STUDENT SERVICES) Tj ET
+0.12 0.13 0.32 rg
+BT /F1 28 Tf 48 682 Td (Course registration) Tj ET
+BT /F1 13 Tf 48 638 Td (Review the academic calendar before selecting courses.) Tj ET
+0.40 0.42 0.49 rg
+BT /F1 10 Tf 48 42 Td (Playwright fixture  /  Page 2 of 3) Tj ET
+endstream
+endobj
+8 0 obj
+<< /Type /Page /Parent 2 0 R /Resources << /Font << /F1 3 0 R >> >> /MediaBox [0 0 595 842] /Contents 9 0 R >>
+endobj
+9 0 obj
+<< /Length 334 >>
+stream
+0.12 0.13 0.3 rg
+48 766 30 4 re f
+BT /F1 12 Tf 48 735 Td (VLU  /  STUDENT SERVICES) Tj ET
+0.12 0.13 0.32 rg
+BT /F1 28 Tf 48 682 Td (Registration checklist) Tj ET
+BT /F1 13 Tf 48 638 Td (Check the course code, timetable and credit requirements.) Tj ET
+0.40 0.42 0.49 rg
+BT /F1 10 Tf 48 42 Td (Playwright fixture  /  Page 3 of 3) Tj ET
+endstream
+endobj
+xref
+0 10
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000127 00000 n 
+0000000197 00000 n 
+0000000323 00000 n 
+0000000696 00000 n 
+0000000822 00000 n 
+0000001200 00000 n 
+0000001326 00000 n 
+trailer
+<< /Size 10 /Root 1 0 R >>
+startxref
+1710
+%%EOF

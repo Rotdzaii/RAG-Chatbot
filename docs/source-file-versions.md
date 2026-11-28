@@ -107,11 +107,12 @@ trang/đoạn như trước; panel báo chưa lưu file gốc và không tạo n
 với bytes không đổi có thể bổ sung version cho chunks thiếu ID mà không embedding
 lại; citation đã lưu trước đó vẫn giữ nguyên.
 
-Người dùng có thể nhấp `[n]` trong câu trả lời hoặc ở **Nguồn tham chiếu**. Frontend
-đọc file qua API có Bearer token. PDF mở ở trang được dẫn qua `#page=N` và TXT mở
-để đọc trong tab mới. **Tải tệp gốc** xuất hiện dưới nguồn trích dẫn trong câu
-trả lời và trong bảng **Nguồn tham khảo** khi có phiên bản tệp. Trích dẫn đã lưu
-mở và tải đúng phiên bản tương ứng. Nguồn website mở liên kết gốc.
+Người dùng có thể xem trước PDF và TXT trong chat bằng cách chọn trích dẫn trong
+câu trả lời, ở **Nguồn tham chiếu** hoặc trong bảng **Nguồn tham khảo**. Frontend
+đọc đúng phiên bản đã lưu qua API có Bearer token. PDF mở từ `page_start` và có
+thể mở trong tab mới. **Tải tệp gốc** có trong cửa sổ xem trước, dưới nguồn trích
+dẫn và trong bảng **Nguồn tham khảo** khi có phiên bản tệp. Nguồn website mở liên
+kết gốc.
 
 ## Migration và kiểm thử
 

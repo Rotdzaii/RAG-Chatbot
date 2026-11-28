@@ -1,0 +1,142 @@
+.source-preview {
+  width: min(880px, calc(100% - 32px));
+  max-width: none;
+  max-height: min(86dvh, 900px);
+  padding: 0;
+  border: 1px solid #dedbd7;
+  border-radius: 14px;
+  color: var(--vlu-navy);
+  background: #fff;
+  box-shadow: 0 16px 64px #1f225126;
+}
+.source-preview[open] { display: flex; flex-direction: column; }
+.source-preview::backdrop { background: #1f225166; }
+.source-preview__header {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 22px;
+  border-bottom: 1px solid #e5e2df;
+}
+.source-preview__icon {
+  display: grid;
+  place-items: center;
+  flex: 0 0 42px;
+  height: 46px;
+  border: 1px solid #e2dfdc;
+  border-radius: 8px;
+  background: #f8f7f4;
+}
+.source-preview__icon svg { width: 24px; height: 24px; }
+.source-file-icon[data-kind='PDF'] { color: #b7192b; }
+.source-file-icon[data-kind='Web'] { color: #36558a; }
+.source-preview__header p { margin: 0 0 3px; color: #596174; font-size: 12px; font-weight: 600; }
+.source-preview__header h2 { margin: 0; font-size: 18px; line-height: 1.35; overflow-wrap: anywhere; }
+.source-preview__close {
+  display: grid;
+  place-items: center;
+  align-self: flex-start;
+  margin-left: auto;
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #596174;
+  cursor: pointer;
+}
+.source-preview__close:hover { color: var(--vlu-navy); background: #f4f3f0; }
+.source-preview__close svg { width: 20px; height: 20px; }
+.source-preview__pdf {
+  display: flex;
+  flex-direction: column;
+  height: min(62dvh, 660px);
+  min-height: 0;
+  background: #f3f2f0;
+}
+.source-preview__pdf-nav {
+  flex-shrink: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: clamp(8px, 3vw, 24px);
+  padding: 8px;
+  border-bottom: 1px solid #e5e2df;
+  background: #fff;
+  font-size: 13px;
+}
+.source-preview__pdf-nav button {
+  min-height: 32px;
+  padding: 4px 9px;
+  border: 1px solid #e2dfdc;
+  border-radius: 6px;
+  color: inherit;
+  background: #fff;
+  font: inherit;
+  cursor: pointer;
+}
+.source-preview__pdf-nav button:hover:not(:disabled) { background: #f3f2f0; }
+.source-preview__pdf-nav button:disabled { opacity: .45; cursor: default; }
+.source-preview__pdf-page {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+.source-preview__pdf-page canvas:not([hidden]) {
+  display: block;
+  width: min(calc(100% - 24px), 660px);
+  height: auto;
+  margin: 12px auto;
+  box-shadow: 0 2px 12px #1f22511a;
+}
+.source-preview__text {
+  min-height: 0;
+  max-height: min(62dvh, 660px);
+  margin: 0;
+  padding: clamp(18px, 4vw, 44px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  color: #343b50;
+  font: inherit;
+  font-size: 15px;
+  line-height: 1.75;
+}
+.source-preview__notice { margin: 0; padding: 28px 22px; color: #596174; font-size: 14px; }
+.source-preview__notice[role='alert'] { color: #98283a; }
+.source-preview__actions {
+  display: flex;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 20px;
+  border-top: 1px solid #e5e2df;
+}
+.source-preview__actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 40px;
+  border-radius: 7px;
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+}
+.source-preview__actions svg { width: 16px; height: 16px; }
+.source-preview__external { color: var(--vlu-navy); }
+.source-preview__external:hover { text-decoration: underline; }
+.source-preview__download { margin-left: auto; padding: 8px 14px; background: var(--vlu-navy); color: #fff; }
+.source-preview__download:hover { background: #30345f; }
+.source-preview :focus-visible { outline: 2px solid var(--vlu-red); outline-offset: -2px; }
+@media (max-width: 600px) {
+  .source-preview { width: calc(100% - 16px); max-height: calc(100dvh - 24px); border-radius: 12px; }
+  .source-preview__header { padding: 14px; gap: 9px; }
+  .source-preview__header h2 { font-size: 16px; }
+  .source-preview__actions { padding: 10px 14px; }
+}

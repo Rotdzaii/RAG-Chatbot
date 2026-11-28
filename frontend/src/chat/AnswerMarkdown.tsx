@@ -9,6 +9,9 @@ import { citationMarkers } from './citedSources'
 function markCitationText(parent: Root | Element) {
   for (let index = 0; index < parent.children.length; index += 1) {
     const node = parent.children[index]
+    if (node.type === 'raw' && /^<br\s*\/?\s*>$/i.test(node.value)) {
+      parent.children[index] = { type: 'element', tagName: 'br', properties: {}, children: [] }
+    }
     if (node.type === 'element' && !['a', 'code', 'pre'].includes(node.tagName)) {
       markCitationText(node)
     }
@@ -46,27 +49,21 @@ export default function AnswerMarkdown({ answer, sources, onOpenFile }: AnswerMa
   const components = useMemo<Components>(() => {
     const byNumber = new Map(sources.map(source => [source.citation, source]))
 
-    function renderCitation(number: string, label: string) {
-      const source = byNumber.get(Number(number))
-      return source ? <CitationLink source={source} onOpenFile={onOpenFile}>{label}</CitationLink> : label
-    }
-
     return {
       span: ({ node, children, ...props }) => {
         const numbers = node?.properties.dataCitationMarkers
         if (typeof numbers !== 'string') return <span {...props}>{children}</span>
-        const parts = numbers.split(/(\s*[,;]\s*)/)
-        if (parts.length === 1) return renderCitation(numbers, `[${numbers}]`)
-        return <>[{parts.map((part, index) => (
-          <span key={index}>{index % 2 === 0 ? renderCitation(part, part) : part}</span>
-        ))}]</>
+        return [...new Set(numbers.split(/\s*[,;]\s*/).map(Number))].map(number => {
+          const source = byNumber.get(number)
+          return source ? <CitationLink key={number} source={source} onOpenFile={onOpenFile} /> : `[${number}]`
+        })
       },
     }
   }, [sources, onOpenFile])
 
   return (
     <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeCitations]} components={components} skipHtml>
-      {answer.replace(/<br\s*\/?\s*>/gi, '  \n')}
+      {answer}
     </ReactMarkdown>
   )
 }
