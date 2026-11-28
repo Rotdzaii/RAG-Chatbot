@@ -98,11 +98,24 @@ for (const width of [1440, 390, 320]) {
     await page.keyboard.press('Escape')
     const menu = page.getByRole('button', { name: 'Mở menu cuộc trò chuyện', exact: true })
     await menu.click()
-    await expect(page.getByRole('menuitem', { name: 'Đổi tên đoạn chat', exact: true })).toBeEnabled()
-    await page.keyboard.press('Escape')
-    await expect(menu).toBeFocused()
+    const rename = page.getByRole('menuitem', { name: 'Đổi tên đoạn chat', exact: true })
+    await expect(rename).toBeEnabled()
+    await rename.focus()
     const sources = page.getByRole('button', { name: 'Xem nguồn tham khảo', exact: true })
-    await sources.focus()
+    // Close the menu and focus Sources in the same frame to catch deferred focus restoration.
+    const focus = await menu.evaluate(async trigger => {
+      const sourcesButton = trigger.parentElement?.querySelector<HTMLButtonElement>(
+        'button[aria-controls="reference-sources-panel"]',
+      )
+      if (!sourcesButton) throw new Error('Sources button is missing')
+      document.activeElement?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      const restoredMenuFocus = document.activeElement === trigger
+      sourcesButton.focus()
+      await new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+      return { restoredMenuFocus, keptSourcesFocus: document.activeElement === sourcesButton }
+    })
+    expect(focus).toEqual({ restoredMenuFocus: true, keptSourcesFocus: true })
+    await expect(menu).toHaveAttribute('aria-expanded', 'false')
     await expect(sources).toBeFocused()
     await sources.hover()
     await sources.click()

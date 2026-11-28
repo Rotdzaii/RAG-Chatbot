@@ -138,17 +138,17 @@ export function CurrentConversationToolbar({
 
   const closeMenu = useCallback((restoreFocus = true) => {
     setIsMenuOpen(false)
-    if (restoreFocus) window.requestAnimationFrame(() => menuTrigger.current?.focus())
+    if (restoreFocus) menuTrigger.current?.focus({ preventScroll: true })
   }, [])
 
   const closeShare = useCallback(() => {
     setIsShareOpen(false)
-    window.requestAnimationFrame(() => shareTrigger.current?.focus())
+    shareTrigger.current?.focus({ preventScroll: true })
   }, [])
 
   const closeDialog = useCallback(() => {
     setDialogMode(null)
-    window.requestAnimationFrame(() => menuTrigger.current?.focus())
+    menuTrigger.current?.focus({ preventScroll: true })
   }, [])
 
   useEffect(() => {
