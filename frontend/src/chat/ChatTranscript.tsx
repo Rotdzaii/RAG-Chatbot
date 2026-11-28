@@ -1,11 +1,8 @@
 import { lazy, Suspense, type RefObject } from 'react'
 import type { ChatTurn } from './types'
 import { GoogleGrounding } from './GoogleGrounding'
-import type { QuestionSource, QuestionStage } from '../api'
-import { CitationDownloadButton } from './CitationDownloadButton'
-import { CitationLink } from './CitationLink'
-import { groupCitedSources } from './citedSources'
-import { formatSourceLocator } from './sourceLocator'
+import type { QuestionStage } from '../api'
+import { AnswerSources } from './AnswerSources'
 import { citationFileError, useCitationFile } from './useCitationFile'
 import { SourceFilePreview } from '../SourceFilePreview'
 
@@ -28,51 +25,8 @@ type ChatTranscriptProps = {
   onRevealEnd: () => void
 }
 
-function AnswerSources({ answer, sources, onOpenFile, onDownloadFile, isFileLoading }: {
-  answer: string
-  sources: QuestionSource[]
-  onOpenFile: (source: QuestionSource) => void
-  onDownloadFile: (source: QuestionSource) => Promise<void>
-  isFileLoading: boolean
-}) {
-  const groups = groupCitedSources(answer, sources)
-  if (groups.length === 0) return null
-
-  return (
-    <div className="answer-sources">
-      <h2>Nguồn tham chiếu</h2>
-      <ol className="source-list">
-        {groups.map((group) => {
-          const sourceFile = group.sources[0]
-          const versionId = sourceFile.source_file_version_id
-          return (
-            <li className="source-card" key={`${group.documentId}:${versionId ?? ''}`}>
-              <span className="source-filename">{group.filename}</span>
-              <ol className="source-passages" aria-label={`Các đoạn trích dẫn trong ${group.filename}`}>
-                {group.sources.map((source) => (
-                  <li key={source.citation}>
-                    <CitationLink source={source} onOpenFile={onOpenFile}>
-                      <span className="citation-number">[{source.citation}]</span>
-                      {' '}
-                      <span className="source-index">{formatSourceLocator(source)}</span>
-                    </CitationLink>
-                  </li>
-                ))}
-              </ol>
-              {versionId && (
-                <CitationDownloadButton filename={group.filename} disabled={isFileLoading}
-                  onClick={() => void onDownloadFile(sourceFile)} />
-              )}
-            </li>
-          )
-        })}
-      </ol>
-    </div>
-  )
-}
-
 export function ChatTranscript({ turns, isRequestPending, accessToken, containerRef, onRetry, onScroll, revealTurnId, onRevealEnd }: ChatTranscriptProps) {
-  const { preview, openFile, closePreview, downloadOriginal, feedback } = useCitationFile(accessToken)
+  const { preview, openFile, closePreview } = useCitationFile(accessToken)
 
   return (
     <>
@@ -102,8 +56,7 @@ export function ChatTranscript({ turns, isRequestPending, accessToken, container
                       <AnswerMarkdown answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile} />
                     </Suspense>
                   </div>}
-                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile}
-                    onDownloadFile={downloadOriginal} isFileLoading={feedback?.kind === 'loading'} />
+                  <AnswerSources answer={turn.response.answer} sources={turn.response.sources} onOpenFile={openFile} />
                   {turn.response.grounding && <GoogleGrounding result={turn.response.grounding} />}
                 </div>
               )}
@@ -119,7 +72,6 @@ export function ChatTranscript({ turns, isRequestPending, accessToken, container
           </section>
         ))}
       </div>
-      {feedback && <p className="citation-file-feedback" role={feedback.kind === 'error' ? 'alert' : 'status'}>{feedback.message}</p>}
       {preview && <SourceFilePreview file={preview} describeError={citationFileError} onClose={closePreview} />}
     </>
   )

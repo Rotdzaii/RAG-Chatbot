@@ -74,16 +74,16 @@ class MajorCatalog:
 
     def inventory_answer(self) -> tuple[str, list[RetrievedChunk]]:
         entries = [self.majors[key] for key in sorted(self.majors)]
-        listing = ", ".join(f"{entry.name} [{i}]" for i, entry in enumerate(entries, 1))
+        listing = "\n".join(f"- {entry.name} [{i}]" for i, entry in enumerate(entries, 1))
         if self.incomplete:
             answer = "Chưa đủ bằng chứng để chốt tổng số ngành vì còn tài liệu chưa xác định được ngành."
             if entries:
                 answer = (
-                    f"Đã xác minh {len(entries)} ngành trong kho tài liệu đang sử dụng, gồm {listing}.\n\n"
+                    f"Đã xác minh {len(entries)} ngành trong kho tài liệu đang sử dụng.\n\n{listing}\n\n"
                     + answer
                 )
         elif entries:
-            answer = f"Theo các tài liệu hiện có, có {len(entries)} ngành: {listing}."
+            answer = f"Kho tài liệu hiện có thông tin về **{len(entries)} ngành**.\n\n{listing}"
         else:
             answer = "Không có tài liệu đang sử dụng trong phạm vi truy vấn."
         return answer, [entry.source for entry in entries]
@@ -121,7 +121,7 @@ def read_major_catalog(session: Session, filters: RetrievalFilters | None, *,
             source = RetrievedChunk(
                 chunk_id=row.chunk_id, document_id=row.id, filename=row.filename,
                 chunk_index=0, content=row.content, cosine_distance=None,
-                mime_type=row.mime_type, source_url=row.source_url,
+                mime_type=row.mime_type, source_url=row.source_url, title=name,
                 source_file_version_id=row.source_file_version_id,
                 page_start=row.page_start, page_end=row.page_end,
             )

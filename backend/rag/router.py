@@ -67,6 +67,7 @@ class QuestionSource(BaseModel):
     document_id: UUID
     filename: str
     mime_type: str | None = None
+    title: str | None = Field(default=None, exclude_if=lambda value: value is None)
     source_url: str | None = None
     source_file_version_id: UUID | None = None
     chunk_index: int
@@ -182,6 +183,7 @@ def _answer_question_request(
                 chunk_id=chunk.chunk_id,
                 document_id=chunk.document_id,
                 filename=chunk.filename,
+                title=chunk.title,
                 mime_type=chunk.mime_type,
                 source_url=chunk.source_url,
                 source_file_version_id=chunk.source_file_version_id,

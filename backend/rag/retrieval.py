@@ -27,6 +27,7 @@ class RetrievedChunk:
     source_url: str | None = None
     source_file_version_id: UUID | None = None
     mime_type: str | None = None
+    title: str | None = None
 
 
 def retrieve_chunks(

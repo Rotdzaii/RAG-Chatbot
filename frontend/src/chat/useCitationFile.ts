@@ -1,14 +1,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { getOriginalSourceFile, QuestionAuthenticationError, type QuestionSource } from '../api'
+import { ApiRequestError, getOriginalSourceFile, QuestionAuthenticationError, type QuestionSource } from '../api'
 import { downloadFile } from '../downloadFile'
 import type { PreviewFile } from '../SourceFilePreview'
 
 type FileFeedback = { kind: 'loading' | 'error'; message: string }
 
 export function citationFileError(error: unknown) {
-  return error instanceof QuestionAuthenticationError
-    ? 'Hãy đăng nhập lại để mở tệp gốc.'
-    : 'Không thể mở tệp gốc. Tài liệu có thể không còn khả dụng cho trích dẫn này.'
+  if (error instanceof QuestionAuthenticationError) {
+    return 'Hãy đăng nhập lại để mở tệp gốc.'
+  }
+  if (error instanceof ApiRequestError && error.status === 503) {
+    return 'Máy chủ hiện chưa thể tải tệp gốc. Hãy thử mở lại sau.'
+  }
+  return 'Không thể mở tệp gốc. Tài liệu có thể không còn khả dụng cho trích dẫn này.'
 }
 
 export function useCitationFile(accessToken: string | undefined) {

@@ -30,14 +30,15 @@ async function historyFixture(page: Page, status = 200, pdfCitation: { filename:
   const history = [
     {
       question: 'Em cần làm gì để đăng ký học phần?',
-      answer: 'Đọc **quy định đăng ký học phần** trước khi lập thời khóa biểu. [2, 1]\n\n'
+      answer: 'Đọc **quy định đăng ký học phần** trước khi lập thời khóa biểu. [2, 1, 2]\n\n'
         + 'Lịch đăng ký được công bố trên [trang sinh viên](https://vlu.edu.vn/). [3]\n\n'
-        + 'Dùng mã học phần `[1]` khi tra cứu. [9]\n\n'
+        + 'Dùng mã học phần `[1]` khi tra cứu. [4] [9]\n\n'
         + '```text\n[2] Mã học phần\n```',
       sources: [
         { ...source(1, pdfCitation.filename, pdfVersion), ...pdfCitation, page_start: 3, source_url: 'https://vlu.example.test/handbook.pdf' },
-        { ...source(2, txtName, oldVersion), mime_type: 'text/plain' },
+        { ...source(2, txtName, oldVersion), mime_type: 'text/plain', title: 'Đăng ký học phần' },
         { ...source(3, webName), source_url: webUrl },
+        { ...source(4, pdfCitation.filename, pdfVersion), ...pdfCitation, page_start: 2 },
       ],
     },
     { question: 'Có bản cập nhật không?', answer: 'Đây là bản cập nhật. [1]', sources: [source(1, txtName, newVersion)] },
@@ -73,13 +74,11 @@ test('inline citations follow their own sentences in marker order and preserve M
   const answer = page.locator('.answer-content').first()
   const paragraphs = answer.locator(':scope > p')
   await expect(paragraphs.nth(0).locator('strong')).toHaveText('quy định đăng ký học phần')
-  await expect(paragraphs.nth(0).locator('.citation-link')).toHaveText([txtName, pdfName])
-  await expect(paragraphs.nth(0).locator('[data-kind]').first()).toHaveAttribute('data-kind', 'TXT')
-  await expect(paragraphs.nth(0).locator('[data-kind]').last()).toHaveAttribute('data-kind', 'PDF')
+  await expect(paragraphs.nth(0).locator('.citation-link')).toHaveText(['[2]', '[1]'])
   await expect(paragraphs.nth(1).getByRole('link', { name: 'trang sinh viên' })).toHaveAttribute('href', 'https://vlu.edu.vn/')
   const website = paragraphs.nth(1).getByRole('link', { name: `Mở trích dẫn 3 · ${webName}` })
   await expect(website).toHaveAttribute('href', webUrl)
-  await expect(website.locator('[data-kind]')).toHaveAttribute('data-kind', 'Web')
+  await expect(website).toHaveText('[3]')
   await context.route('https://vlu.example.test/**', route => route.fulfill({ body: 'Cổng thông tin fixture' }))
   const opened = page.waitForEvent('popup')
   await website.click()
@@ -89,30 +88,59 @@ test('inline citations follow their own sentences in marker order and preserve M
   await expect(paragraphs.nth(2).locator('code')).toHaveText('[1]')
   await expect(paragraphs.nth(2)).toContainText('[9]')
   await expect(answer.locator('pre code')).toHaveText('[2] Mã học phần')
-  await expect(answer.locator('.citation-link')).toHaveCount(3)
-  await expect(page.getByRole('heading', { name: 'Nguồn tham chiếu', exact: true }).first()).toBeVisible()
+  await expect(answer.locator('.citation-link')).toHaveCount(4)
+  await expect(page.getByRole('button', { name: 'Xem 3 nguồn', exact: true })).toHaveAttribute('aria-expanded', 'false')
+  await expect(page.getByRole('list', { name: 'Nguồn của câu trả lời' })).toHaveCount(0)
   expect(mock.requests).toEqual([])
 })
 
-test('answers and reference panel retain direct downloads for both immutable versions', async ({ page }) => {
+test('reference toolbar retains direct downloads for both immutable versions', async ({ page }) => {
   const mock = await historyFixture(page)
   await openPanel(page)
   const panel = page.locator('#reference-sources-panel')
   await expect(panel).toContainText('Quy định cũ.txt')
   await expect(panel).toContainText('Chưa lưu tệp gốc')
-  for (const location of [panel, page.locator('.answer-sources')]) {
-    if (location !== panel) await page.keyboard.press('Escape')
-    const buttons = location.getByRole('button', { name: `Tải tệp gốc · ${txtName}`, exact: true })
-    await expect(buttons).toHaveCount(2)
-    for (const [index, content] of [txtContent, 'Nội dung cập nhật'].entries()) {
-      const ready = page.waitForEvent('download')
-      await buttons.nth(index).click()
-      const download = await ready
-      expect(download.suggestedFilename()).toBe(txtName)
-      expect(await readFile((await download.path())!, 'utf8')).toBe(content)
-    }
+  const buttons = panel.getByRole('button', { name: `Tải tệp gốc · ${txtName}`, exact: true })
+  await expect(buttons).toHaveCount(2)
+  for (const [index, content] of [txtContent, 'Nội dung cập nhật'].entries()) {
+    const ready = page.waitForEvent('download')
+    await buttons.nth(index).click()
+    const download = await ready
+    expect(download.suggestedFilename()).toBe(txtName)
+    expect(await readFile((await download.path())!, 'utf8')).toBe(content)
   }
-  expect(mock.requests).toEqual([oldVersion, newVersion, oldVersion, newVersion])
+  expect(mock.requests).toEqual([oldVersion, newVersion])
+})
+
+test('source disclosure groups both PDF pages in one row and returns keyboard focus at 320px', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  const mock = await historyFixture(page)
+  await page.setViewportSize({ width: 320, height: 740 })
+  const toggle = page.getByRole('button', { name: 'Xem 3 nguồn', exact: true })
+  await toggle.press('Enter')
+  await expect(toggle).toBeFocused()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'true')
+  const list = page.getByRole('list', { name: 'Nguồn của câu trả lời' })
+  await expect(list.getByRole('listitem')).toHaveCount(3)
+  await expect(list.getByRole('button', { name: '[2] Đăng ký học phần · TXT' })).toBeVisible()
+  await expect(list.getByRole('button', { name: '[1] Sổ tay sinh viên · PDF · Trang 3' })).toBeVisible()
+  await expect(list.getByRole('button', { name: /Tải tệp gốc/ })).toHaveCount(0)
+  await expect(list).not.toContainText('Đoạn 0')
+  await expect(list).toHaveCSS('transform', 'none')
+  expect(await list.evaluate(element => element.scrollWidth <= element.clientWidth)).toBe(true)
+
+  const pageTwo = list.getByRole('button', { name: '[4] Trang 2 · Sổ tay sinh viên' })
+  await pageTwo.press('Enter')
+  const dialog = page.getByRole('dialog', { name: pdfName })
+  await expect(dialog.getByRole('img', { name: 'Trang 2', exact: true })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(pageTwo).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(toggle).toBeFocused()
+  await expect(toggle).toHaveAttribute('aria-expanded', 'false')
+  await expect(list).toHaveCount(0)
+  expect(mock.requests).toEqual([pdfVersion])
 })
 
 test('opening the same document from two answers previews each cited version', async ({ page }) => {
@@ -205,15 +233,13 @@ for (const [viewport, width, height] of [['desktop', 1440, 1000], ['mobile', 390
     const label = citation(page, `Mở trích dẫn 2 · ${txtName}`)
     await page.locator('.answer-content').first().scrollIntoViewIfNeeded()
     await expect(label).toHaveAttribute('title', txtName)
-    const name = label.locator('.citation-link__name')
+    await expect(label).toHaveText('[2]')
     if (viewport === 'mobile') {
-      expect(await name.evaluate(node => node.scrollWidth > node.clientWidth)).toBe(true)
       await label.press('Tab')
       await page.keyboard.press('Shift+Tab')
       await expect(label).toBeFocused()
       await expect(label).toHaveCSS('outline-style', 'solid')
       await expect(label).toHaveAccessibleName(`Mở trích dẫn 2 · ${txtName}`)
-      await expect(name).toHaveCSS('white-space', 'nowrap')
       await label.blur()
     }
     await page.screenshot({ path: `test-results/inline-source-previews/chat-sources-${viewport}.png`, animations: 'disabled' })
@@ -235,6 +261,12 @@ for (const [viewport, width, height] of [['desktop', 1440, 1000], ['mobile', 390
 
 test('old citations show the filename and missing-file message without requesting a file', async ({ page }) => {
   const mock = await historyFixture(page)
+  const oldAnswer = page.locator('.chat-turn').last()
+  await oldAnswer.getByRole('button', { name: 'Xem 1 nguồn' }).click()
+  const list = oldAnswer.getByRole('list', { name: 'Nguồn của câu trả lời' })
+  await expect(list).toContainText('Quy định cũ')
+  await expect(list).toContainText('Chưa có tệp gốc để xem')
+  await expect(list.getByRole('button')).toHaveCount(0)
   await citation(page, 'Mở trích dẫn 1 · Quy định cũ.txt').click()
   const dialog = page.getByRole('dialog', { name: 'Quy định cũ.txt' })
   await expect(dialog.getByRole('status')).toContainText('Chưa lưu tệp gốc')
@@ -251,9 +283,33 @@ test('failed previews display a safe error and can be closed', async ({ page }) 
   await page.keyboard.press('Escape')
   await expect(dialog).toHaveCount(0)
   await expect(page.locator('.chat-turn')).toHaveCount(3)
-  await page.locator('.answer-sources').getByRole('button', { name: `Tải tệp gốc · ${pdfName}`, exact: true }).click()
+  await openPanel(page)
+  await page.locator('#reference-sources-panel').getByRole('button', { name: `Tải tệp gốc · ${pdfName}`, exact: true }).first().click()
   await expect(page.getByRole('alert')).toContainText('Không thể mở tệp gốc')
   await expect(page.getByRole('alert')).not.toContainText('private storage detail')
+  expect(mock.requests).toEqual([pdfVersion, pdfVersion])
+})
+
+test('preview distinguishes a 503 and can reopen the same PDF after service recovery', async ({ page }) => {
+  const mock = await historyFixture(page, 503)
+  const label = citation(page, `Mở trích dẫn 1 · ${pdfName}`)
+  await label.press('Enter')
+  const dialog = page.getByRole('dialog', { name: pdfName })
+  const alert = dialog.getByRole('alert')
+  await expect(alert).toHaveText('Máy chủ hiện chưa thể tải tệp gốc. Hãy thử mở lại sau.')
+  await expect(dialog.getByRole('link', { name: 'Tải tệp gốc' })).toHaveCount(0)
+  expect(mock.requests).toEqual([pdfVersion])
+  await page.keyboard.press('Escape')
+  await expect(dialog).toHaveCount(0)
+  await expect(label).toBeFocused()
+
+  await page.route(`**/source-files/${pdfVersion}`, async route => {
+    mock.requests.push(pdfVersion)
+    await route.fulfill({ contentType: 'application/pdf', body: await readFile(pdfFixture) })
+  })
+  await label.press('Enter')
+  await expect(dialog.getByRole('img', { name: 'Trang 3', exact: true })).toBeVisible()
+  await expect(dialog.getByRole('link', { name: 'Tải tệp gốc' })).toBeVisible()
   expect(mock.requests).toEqual([pdfVersion, pdfVersion])
 })
 
@@ -302,7 +358,7 @@ test('live grounding preserves text and displays Search Suggestions, and reload 
   await expect(grounding).toBeVisible()
   expect(await grounding.locator('p').textContent()).toBe(text)
   await expect(grounding.locator('iframe')).toHaveCount(0)
-  await expect(turn.locator('.answer-content').getByText('legacy.pdf')).toBeVisible()
+  await expect(turn.locator('.answer-content').getByRole('button', { name: 'Mở trích dẫn 1 · legacy.pdf' })).toHaveText('[1]')
   const suggestion = grounding.getByRole('link', { name: 'Thời tiết hôm nay', exact: true })
   await expect(suggestion).toBeVisible()
   await expect(suggestion).toHaveCSS('color', 'rgb(12, 34, 56)')
@@ -319,7 +375,7 @@ test('live grounding preserves text and displays Search Suggestions, and reload 
   }
   await page.reload()
   await page.getByRole('button', { name: 'Tra cứu hỗn hợp', exact: true }).click()
-  await expect(turn.locator('.answer-content').getByText('legacy.pdf')).toBeVisible()
+  await expect(turn.locator('.answer-content').getByRole('button', { name: 'Mở trích dẫn 1 · legacy.pdf' })).toHaveText('[1]')
   await expect(turn.getByText(expiry)).toBeVisible()
   await expect(grounding).toHaveCount(0)
 })

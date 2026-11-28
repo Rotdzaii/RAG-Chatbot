@@ -53,9 +53,9 @@ export default function AnswerMarkdown({ answer, sources, onOpenFile }: AnswerMa
       span: ({ node, children, ...props }) => {
         const numbers = node?.properties.dataCitationMarkers
         if (typeof numbers !== 'string') return <span {...props}>{children}</span>
-        return numbers.split(/\s*[,;]\s*/).map((number, index) => {
-          const source = byNumber.get(Number(number))
-          return source ? <CitationLink key={index} source={source} onOpenFile={onOpenFile} /> : `[${number}]`
+        return [...new Set(numbers.split(/\s*[,;]\s*/).map(Number))].map(number => {
+          const source = byNumber.get(number)
+          return source ? <CitationLink key={number} source={source} onOpenFile={onOpenFile} /> : `[${number}]`
         })
       },
     }

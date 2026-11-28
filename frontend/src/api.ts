@@ -14,6 +14,7 @@ export type QuestionSource = {
   chunk_id: string
   document_id: string
   filename: string
+  title?: string | null
   source_url?: string | null
   source_file_version_id?: string | null
   mime_type?: string | null
